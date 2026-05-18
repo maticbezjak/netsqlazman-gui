@@ -1,0 +1,27 @@
+appId: com.netsqlazman.gui
+productName: NetSqlAzMan Manager
+
+directories:
+  output: release
+
+files:
+  - dist/**
+  - electron/**
+  - package.json
+  - node_modules/**
+
+extraMetadata:
+  main: electron/main.js
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
