@@ -1,31 +1,81 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
+import {
+  IconUser, IconUsers, IconTask, IconOp,
+  IconStore, IconApp, IconFolder, IconFolderKey,
+  IconRefresh, IconChevRight, IconChevDown,
+} from './Icon'
 
 const ITEM_DEFS = [
-  { itemType: 0, label: 'Role Definitions',      icon: '👤' },
-  { itemType: 1, label: 'Task Definitions',      icon: '📋' },
-  { itemType: 2, label: 'Operation Definitions', icon: '⚡' },
+  { itemType: 0, label: 'Role Definitions',      Icon: IconUser },
+  { itemType: 1, label: 'Task Definitions',      Icon: IconTask },
+  { itemType: 2, label: 'Operation Definitions', Icon: IconOp   },
 ]
 const ITEM_AUTHS = [
-  { itemType: 0, label: 'Roles Authorizations',     icon: '👤' },
-  { itemType: 1, label: 'Task Authorizations',      icon: '📋' },
-  { itemType: 2, label: 'Operation Authorizations', icon: '⚡' },
+  { itemType: 0, label: 'Roles Authorizations',     Icon: IconUser },
+  { itemType: 1, label: 'Task Authorizations',      Icon: IconTask },
+  { itemType: 2, label: 'Operation Authorizations', Icon: IconOp   },
 ]
 
-export default function Sidebar({ selection, onSelect }) {
+const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref) {
   const [stores, setStores]       = useState([])
-  const [apps, setApps]           = useState({})           // storeId → []
-  const [appGroups, setAppGroups] = useState({})           // applicationId → []
-  const [items, setItems]         = useState({})           // `${appId}-${type}` → []
+  const [apps, setApps]           = useState({})
+  const [appGroups, setAppGroups] = useState({})
+  const [items, setItems]         = useState({})
   const [expanded, setExpanded]   = useState({})
   const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
 
   useEffect(() => { loadStores() }, [])
+
+  useImperativeHandle(ref, () => ({
+    async refreshGroups(appId) {
+      const r = await window.db.getApplicationGroups(appId)
+      if (r.data) setAppGroups((g) => ({ ...g, [appId]: r.data }))
+    },
+    async refreshItems(appId, itemType) {
+      const key = `${appId}-${itemType}`
+      const r = await window.db.getItemsByType(appId, itemType)
+      if (r.data) setItems((i) => ({ ...i, [key]: r.data }))
+    },
+  }))
 
   async function loadStores() {
     setLoading(true)
     const r = await window.db.getStores()
-    setStores(r.data || [])
+    const storeList = r.data || []
+    setStores(storeList)
     setLoading(false)
+    await autoExpand(storeList)
+  }
+
+  async function autoExpand(storeList) {
+    if (!storeList.length) return
+    const store = storeList[0]
+
+    const appsRes = await window.db.getApplications(store.StoreId)
+    const appList = appsRes.data || []
+    setApps((a) => ({ ...a, [store.StoreId]: appList }))
+
+    if (!appList.length) {
+      setExpanded((e) => ({ ...e, [`s-${store.StoreId}`]: true }))
+      return
+    }
+
+    const app = appList[0]
+
+    const groupsRes = await window.db.getApplicationGroups(app.ApplicationId)
+    setAppGroups((g) => ({ ...g, [app.ApplicationId]: groupsRes.data || [] }))
+
+    setExpanded((e) => ({
+      ...e,
+      [`s-${store.StoreId}`]:          true,
+      [`app-${app.ApplicationId}`]:    true,
+      [`ag-${app.ApplicationId}`]:     true,
+      [`defs-${app.ApplicationId}`]:   true,
+      [`auths-${app.ApplicationId}`]:  true,
+    }))
+
+    onSelect({ type: 'app-groups-folder', applicationId: app.ApplicationId, appName: app.Name })
   }
 
   function tog(key) {
@@ -48,7 +98,7 @@ export default function Sidebar({ selection, onSelect }) {
       if (r.data) setAppGroups((g) => ({ ...g, [app.ApplicationId]: r.data }))
     }
     tog(key)
-    onSelect({ type: 'app-groups-folder', applicationId: app.ApplicationId })
+    onSelect({ type: 'app-groups-folder', applicationId: app.ApplicationId, appName: app.Name })
   }
 
   async function expandItemTypeFolder(app, itemType, prefix) {
@@ -74,14 +124,26 @@ export default function Sidebar({ selection, onSelect }) {
     }
   }
   const currentKey = selKey(selection)
+  const isSel = (key) => currentKey === key
 
-  function isSel(key) { return currentKey === key }
+  const q    = search.trim().toLowerCase()
+  const hasQ = !!q
+  const filterByName = (list) => hasQ ? list.filter((x) => (x.Name || '').toLowerCase().includes(q)) : list
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={style}>
       <div className="sidebar-header">
         <span>Authorization Manager</span>
-        <button className="icon-btn" onClick={loadStores} title="Refresh">↻</button>
+        <button className="icon-btn" onClick={loadStores} title="Refresh"><IconRefresh /></button>
+      </div>
+
+      <div className="sidebar-search-wrap">
+        <input
+          className="sidebar-search"
+          placeholder="Filter…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       {loading && <div className="sidebar-msg">Loading…</div>}
@@ -89,123 +151,179 @@ export default function Sidebar({ selection, onSelect }) {
       <div className="tree">
         {stores.map((store) => (
           <div key={store.StoreId}>
-            {/* Store */}
+
+            {/* ── Store (root) ─────────────────────────────────────── */}
             <div className="tree-node n0" onClick={() => expandStore(store)}>
-              <span className="tree-arrow">{expanded[`s-${store.StoreId}`] ? '▾' : '▸'}</span>
-              <span className="tree-icon">🗄️</span>
+              <span className="tree-arrow">
+                {expanded[`s-${store.StoreId}`] ? <IconChevDown /> : <IconChevRight />}
+              </span>
+              <span className="tree-icon"><IconStore /></span>
               <span className="tree-label" title={store.Description}>{store.Name}</span>
             </div>
 
-            {expanded[`s-${store.StoreId}`] && (apps[store.StoreId] || []).map((app) => (
-              <div key={app.ApplicationId}>
-                {/* Application */}
-                <div className="tree-node n1" onClick={() => tog(`app-${app.ApplicationId}`)}>
-                  <span className="tree-arrow">{expanded[`app-${app.ApplicationId}`] ? '▾' : '▸'}</span>
-                  <span className="tree-icon">📦</span>
-                  <span className="tree-label">{app.Name}</span>
-                </div>
+            {expanded[`s-${store.StoreId}`] && (
+              <div className="tree-level">
+                {(apps[store.StoreId] || []).map((app) => (
+                  <div key={app.ApplicationId}>
 
-                {expanded[`app-${app.ApplicationId}`] && (
-                  <>
-                    {/* ── Application Groups ─────────────────────────── */}
-                    <div
-                      className={`tree-node n2 folder ${isSel(`app-groups-folder:${app.ApplicationId}`) ? 'selected' : ''}`}
-                      onClick={() => expandAppGroups(app)}
-                    >
-                      <span className="tree-arrow">{expanded[`ag-${app.ApplicationId}`] ? '▾' : '▸'}</span>
-                      <span className="tree-icon">👥</span>
-                      <span className="tree-label">Application Groups</span>
+                    {/* ── Application ──────────────────────────────── */}
+                    <div className="tree-node n1" onClick={() => tog(`app-${app.ApplicationId}`)}>
+                      <span className="tree-tick" />
+                      <span className="tree-arrow">
+                        {expanded[`app-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
+                      </span>
+                      <span className="tree-icon"><IconApp /></span>
+                      <span className="tree-label">{app.Name}</span>
                     </div>
 
-                    {expanded[`ag-${app.ApplicationId}`] && (appGroups[app.ApplicationId] || []).map((g) => (
-                      <div
-                        key={g.ApplicationGroupId}
-                        className={`tree-node n3 ${isSel(`app-group:${g.ApplicationGroupId}`) ? 'selected' : ''}`}
-                        onClick={() => onSelect({ type: 'app-group', group: g, applicationId: app.ApplicationId })}
-                      >
-                        <span className="tree-icon">👤</span>
-                        <span className="tree-label" title={g.Description}>{g.Name}</span>
+                    {expanded[`app-${app.ApplicationId}`] && (
+                      <div className="tree-level">
+
+                        {/* ── Application Groups folder ─────────────── */}
+                        <div
+                          className={`tree-node n2 folder ${isSel(`app-groups-folder:${app.ApplicationId}`) ? 'selected' : ''}`}
+                          onClick={() => expandAppGroups(app)}
+                        >
+                          <span className="tree-tick" />
+                          <span className="tree-arrow">
+                            {expanded[`ag-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
+                          </span>
+                          <span className="tree-icon"><IconUsers /></span>
+                          <span className="tree-label">Application Groups</span>
+                        </div>
+
+                        {expanded[`ag-${app.ApplicationId}`] && (
+                          <div className="tree-level">
+                            {filterByName(appGroups[app.ApplicationId] || []).map((g) => (
+                              <div
+                                key={g.ApplicationGroupId}
+                                className={`tree-node n3 ${isSel(`app-group:${g.ApplicationGroupId}`) ? 'selected' : ''}`}
+                                onClick={() => onSelect({ type: 'app-group', group: g, applicationId: app.ApplicationId, appName: app.Name })}
+                              >
+                                <span className="tree-tick" />
+                                <span className="tree-icon"><IconUser /></span>
+                                <span className="tree-label" title={g.Description}>{g.Name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* ── Item Definitions folder ───────────────── */}
+                        <div className="tree-node n2 folder" onClick={() => tog(`defs-${app.ApplicationId}`)}>
+                          <span className="tree-tick" />
+                          <span className="tree-arrow">
+                            {expanded[`defs-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
+                          </span>
+                          <span className="tree-icon"><IconFolder /></span>
+                          <span className="tree-label">Item Definitions</span>
+                        </div>
+
+                        {expanded[`defs-${app.ApplicationId}`] && (
+                          <div className="tree-level">
+                            {ITEM_DEFS.map(({ itemType, label, Icon }) => {
+                              const cacheKey = `${app.ApplicationId}-${itemType}`
+                              const expKey   = `defs-${app.ApplicationId}-${itemType}`
+                              return (
+                                <div key={itemType}>
+                                  <div
+                                    className={`tree-node n3 folder ${isSel(`item-defs-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      expandItemTypeFolder(app, itemType, 'defs')
+                                      onSelect({ type: 'item-defs-folder', applicationId: app.ApplicationId, itemType, appName: app.Name })
+                                    }}
+                                  >
+                                    <span className="tree-tick" />
+                                    <span className="tree-arrow">
+                                      {expanded[expKey] ? <IconChevDown /> : <IconChevRight />}
+                                    </span>
+                                    <span className="tree-icon"><Icon /></span>
+                                    <span className="tree-label">{label}</span>
+                                  </div>
+
+                                  {expanded[expKey] && (
+                                    <div className="tree-level">
+                                      {filterByName(items[cacheKey] || []).map((item) => (
+                                        <div
+                                          key={item.ItemId}
+                                          className={`tree-node n4 ${isSel(`item-def:${item.ItemId}`) ? 'selected' : ''}`}
+                                          onClick={() => onSelect({ type: 'item-def', item, appName: app.Name })}
+                                        >
+                                          <span className="tree-tick" />
+                                          <span className="tree-label" title={item.Description}>{item.Name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* ── Item Authorizations folder ────────────── */}
+                        <div className="tree-node n2 folder" onClick={() => tog(`auths-${app.ApplicationId}`)}>
+                          <span className="tree-tick" />
+                          <span className="tree-arrow">
+                            {expanded[`auths-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
+                          </span>
+                          <span className="tree-icon"><IconFolderKey /></span>
+                          <span className="tree-label">Item Authorizations</span>
+                        </div>
+
+                        {expanded[`auths-${app.ApplicationId}`] && (
+                          <div className="tree-level">
+                            {ITEM_AUTHS.map(({ itemType, label, Icon }) => {
+                              const cacheKey = `${app.ApplicationId}-${itemType}`
+                              const expKey   = `auths-${app.ApplicationId}-${itemType}`
+                              return (
+                                <div key={itemType}>
+                                  <div
+                                    className={`tree-node n3 folder ${isSel(`item-auths-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
+                                    onClick={() => {
+                                      expandItemTypeFolder(app, itemType, 'auths')
+                                      onSelect({ type: 'item-auths-folder', applicationId: app.ApplicationId, itemType, appName: app.Name })
+                                    }}
+                                  >
+                                    <span className="tree-tick" />
+                                    <span className="tree-arrow">
+                                      {expanded[expKey] ? <IconChevDown /> : <IconChevRight />}
+                                    </span>
+                                    <span className="tree-icon"><Icon /></span>
+                                    <span className="tree-label">{label}</span>
+                                  </div>
+
+                                  {expanded[expKey] && (
+                                    <div className="tree-level">
+                                      {filterByName(items[cacheKey] || []).map((item) => (
+                                        <div
+                                          key={item.ItemId}
+                                          className={`tree-node n4 ${isSel(`item-auth:${item.ItemId}`) ? 'selected' : ''}`}
+                                          onClick={() => onSelect({ type: 'item-auth', item, appName: app.Name })}
+                                        >
+                                          <span className="tree-tick" />
+                                          <span className="tree-label" title={item.Description}>{item.Name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
                       </div>
-                    ))}
-
-                    {/* ── Item Definitions ───────────────────────────── */}
-                    <div className="tree-node n2 folder" onClick={() => tog(`defs-${app.ApplicationId}`)}>
-                      <span className="tree-arrow">{expanded[`defs-${app.ApplicationId}`] ? '▾' : '▸'}</span>
-                      <span className="tree-icon">📁</span>
-                      <span className="tree-label">Item Definitions</span>
-                    </div>
-
-                    {expanded[`defs-${app.ApplicationId}`] && ITEM_DEFS.map(({ itemType, label, icon }) => {
-                      const cacheKey = `${app.ApplicationId}-${itemType}`
-                      const expKey   = `defs-${app.ApplicationId}-${itemType}`
-                      return (
-                        <div key={itemType}>
-                          <div
-                            className={`tree-node n3 folder ${isSel(`item-defs-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
-                            onClick={() => {
-                              expandItemTypeFolder(app, itemType, 'defs')
-                              onSelect({ type: 'item-defs-folder', applicationId: app.ApplicationId, itemType })
-                            }}
-                          >
-                            <span className="tree-arrow">{expanded[expKey] ? '▾' : '▸'}</span>
-                            <span className="tree-icon">{icon}</span>
-                            <span className="tree-label">{label}</span>
-                          </div>
-                          {expanded[expKey] && (items[cacheKey] || []).map((item) => (
-                            <div
-                              key={item.ItemId}
-                              className={`tree-node n4 ${isSel(`item-def:${item.ItemId}`) ? 'selected' : ''}`}
-                              onClick={() => onSelect({ type: 'item-def', item })}
-                            >
-                              <span className="tree-label" title={item.Description}>{item.Name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    })}
-
-                    {/* ── Item Authorizations ────────────────────────── */}
-                    <div className="tree-node n2 folder" onClick={() => tog(`auths-${app.ApplicationId}`)}>
-                      <span className="tree-arrow">{expanded[`auths-${app.ApplicationId}`] ? '▾' : '▸'}</span>
-                      <span className="tree-icon">🔐</span>
-                      <span className="tree-label">Item Authorizations</span>
-                    </div>
-
-                    {expanded[`auths-${app.ApplicationId}`] && ITEM_AUTHS.map(({ itemType, label, icon }) => {
-                      const cacheKey = `${app.ApplicationId}-${itemType}`
-                      const expKey   = `auths-${app.ApplicationId}-${itemType}`
-                      return (
-                        <div key={itemType}>
-                          <div
-                            className={`tree-node n3 folder ${isSel(`item-auths-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
-                            onClick={() => {
-                              expandItemTypeFolder(app, itemType, 'auths')
-                              onSelect({ type: 'item-auths-folder', applicationId: app.ApplicationId, itemType })
-                            }}
-                          >
-                            <span className="tree-arrow">{expanded[expKey] ? '▾' : '▸'}</span>
-                            <span className="tree-icon">{icon}</span>
-                            <span className="tree-label">{label}</span>
-                          </div>
-                          {expanded[expKey] && (items[cacheKey] || []).map((item) => (
-                            <div
-                              key={item.ItemId}
-                              className={`tree-node n4 ${isSel(`item-auth:${item.ItemId}`) ? 'selected' : ''}`}
-                              onClick={() => onSelect({ type: 'item-auth', item })}
-                            >
-                              <span className="tree-label" title={item.Description}>{item.Name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    })}
-                  </>
-                )}
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+
           </div>
         ))}
       </div>
     </aside>
   )
-}
+})
+
+export default Sidebar

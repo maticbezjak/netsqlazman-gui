@@ -1,36 +1,83 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import ConnectionBar from './components/ConnectionBar'
 import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
+import Breadcrumb from './components/Breadcrumb'
+import { IconLock } from './components/Icon'
+import { ToastProvider } from './components/Toast'
+import { ConfirmProvider } from './components/ConfirmDialog'
 
 export default function App() {
   const [connected, setConnected] = useState(false)
   const [selection, setSelection] = useState(null)
+  const [sidebarW, setSidebarW]   = useState(280)
+  const sidebarRef = useRef()
+  const dragging   = useRef(false)
 
   function handleConnectionChange(isConnected) {
     setConnected(isConnected)
     if (!isConnected) setSelection(null)
   }
 
+  function refreshGroups(appId) { sidebarRef.current?.refreshGroups(appId) }
+  function refreshItems(appId, itemType) { sidebarRef.current?.refreshItems(appId, itemType) }
+
+  useEffect(() => {
+    function onMouseMove(e) {
+      if (!dragging.current) return
+      setSidebarW(Math.max(160, Math.min(480, e.clientX)))
+    }
+    function onMouseUp() { dragging.current = false }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
   return (
-    <div className="app">
-      <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} />
-      <div className="workspace">
-        {connected && (
-          <Sidebar selection={selection} onSelect={setSelection} />
-        )}
-        <main className="content">
-          {!connected ? (
-            <div className="empty-state">
-              <div className="empty-icon">🔒</div>
-              <h2>Not connected</h2>
-              <p>Enter your SQL Server connection details above to get started.</p>
-            </div>
-          ) : (
-            <MainPanel selection={selection} onSelect={setSelection} />
-          )}
-        </main>
-      </div>
-    </div>
+    <ToastProvider>
+      <ConfirmProvider>
+        <div className="app">
+          <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} />
+          <div className="workspace">
+            {connected && (
+              <>
+                <Sidebar
+                  ref={sidebarRef}
+                  style={{ width: sidebarW, minWidth: sidebarW }}
+                  selection={selection}
+                  onSelect={setSelection}
+                />
+                <div
+                  className="resize-handle"
+                  onMouseDown={(e) => { dragging.current = true; e.preventDefault() }}
+                />
+              </>
+            )}
+            <main className="content">
+              {!connected ? (
+                <div className="empty-state">
+                  <div className="empty-icon"><IconLock size={48} strokeWidth={1.4} /></div>
+                  <h2>Not connected</h2>
+                  <p>Enter your SQL Server connection details above to get started.</p>
+                </div>
+              ) : (
+                <>
+                  <Breadcrumb selection={selection} />
+                  <MainPanel
+                    selection={selection}
+                    onSelect={setSelection}
+                    onRefreshGroups={refreshGroups}
+                    onRefreshItems={refreshItems}
+                  />
+                </>
+              )}
+            </main>
+          </div>
+        </div>
+      </ConfirmProvider>
+    </ToastProvider>
   )
 }

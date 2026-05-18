@@ -12,6 +12,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "lucide-react": "^1.16.0",
     "mssql": "^12.5.2"
   },
   "devDependencies": {

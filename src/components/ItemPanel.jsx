@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import AuthTable from './AuthTable'
+import { IconUser, IconTask, IconOp } from './Icon'
+import { SkeletonInline } from './Skeleton'
 
-// ItemType values as returned by the DB
 const ITEM_TYPE = { 0: 'Role', 1: 'Task', 2: 'Operation' }
-const ITEM_ICON = { 0: '👤', 1: '📋', 2: '⚡' }
+const ITEM_ICON = { 0: <IconUser />, 1: <IconTask />, 2: <IconOp /> }
 
 export default function ItemPanel({ item }) {
   const [tab, setTab]                   = useState('auth')
@@ -60,7 +61,7 @@ export default function ItemPanel({ item }) {
 
       <div className="tab-content">
         {loading ? (
-          <div className="panel-loading">Loading…</div>
+          <SkeletonInline />
         ) : tab === 'auth' ? (
           <AuthTable
             authorizations={authorizations}
@@ -78,7 +79,7 @@ export default function ItemPanel({ item }) {
 
 function MembersTable({ members }) {
   const TYPE_LABEL = { 0: 'Role', 1: 'Task', 2: 'Operation' }
-  const TYPE_ICON  = { 0: '👤', 1: '📋', 2: '⚡' }
+  const TYPE_ICON  = { 0: <IconUser />, 1: <IconTask />, 2: <IconOp /> }
 
   if (!members.length) return <div className="empty-table">No child items defined for this item.</div>
   return (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { IconCheck, IconFolderOpen, IconChevDown } from './Icon'
 
 const EMPTY = { server: '', port: '1433', user: '', password: '', database: '' }
 
@@ -11,6 +12,8 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
   const [showDropdown, setShowDropdown]   = useState(false)
   const [saveMode, setSaveMode]           = useState(false)   // inline save-name input
   const [saveName, setSaveName]           = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [savedFlash, setSavedFlash]       = useState(false)  // brief "Saved!" confirmation
   const dropdownRef = useRef(null)
 
   useEffect(() => {
@@ -60,14 +63,23 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
 
   async function handleSave() {
     if (!saveName.trim()) return
-    const list = await window.connections.save({
-      name: saveName.trim(),
-      server: config.server, port: config.port,
-      user: config.user, password: config.password, database: config.database,
-    })
-    setSaved(list)
-    setSaveMode(false)
-    setSaveName('')
+    setSaving(true)
+    try {
+      const list = await window.connections.save({
+        name: saveName.trim(),
+        server: config.server, port: config.port,
+        user: config.user, password: config.password, database: config.database,
+      })
+      setSaved(list)
+      setSaveMode(false)
+      setSaveName('')
+      setSavedFlash(true)
+      setTimeout(() => setSavedFlash(false), 2000)
+    } catch (err) {
+      alert('Failed to save connection:\n' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id, e) {
@@ -103,7 +115,7 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
               onClick={() => setShowDropdown((v) => !v)}
               title="Saved connections"
             >
-              📂 {saved.length > 0 ? saved.length : ''} ▾
+              <IconFolderOpen /> {saved.length > 0 ? saved.length : ''} <IconChevDown />
             </button>
 
             {showDropdown && (
@@ -175,6 +187,8 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
           <span className="status-dot" />
           <span className="conn-info">{config.server}:{config.port} / {config.database}</span>
 
+          {savedFlash && <span className="save-flash"><IconCheck /> Saved!</span>}
+
           {saveMode ? (
             <>
               <input
@@ -185,7 +199,9 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaveMode(false) }}
                 autoFocus
               />
-              <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={!saveName.trim()}>Save</button>
+              <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !saveName.trim()}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
               <button className="btn btn-ghost btn-sm" onClick={() => setSaveMode(false)}>✕</button>
             </>
           ) : (

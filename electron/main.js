@@ -247,7 +247,7 @@ ipcMain.handle('db:getApplicationGroupMembers', async (_, groupId) => {
   }
 })
 
-// Returns all application groups — these are the authorizable principals (users + groups)
+// Returns all application groups — includes ApplicationId for CRUD context
 ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
@@ -256,6 +256,7 @@ ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
       .query(`
         SELECT
           ApplicationGroupId,
+          ApplicationId,
           Name,
           Description,
           GroupType,
@@ -270,31 +271,277 @@ ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
   }
 })
 
-// ── Write ─────────────────────────────────────────────────────────────────────
+// Returns all database users (WhereDefined=4 principals)
+ipcMain.handle('db:getDatabaseUsers', async () => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .query(`SELECT DBUserSid, DBUserName, CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
+              FROM netsqlazman_DatabaseUsers ORDER BY DBUserName`)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
 
-// sidHex:        hex string of the principal's objectSid (e.g. '0xD244B2...')
-// ownerSidHex:   hex string of the admin/owner's SID (can be same as sidHex or MantoAdmin's)
-// authType:      0=NEUTRAL, 1=ALLOW, 2=DENY, 3=ALLOWWITHDELEGATION
-// whereDefined:  1=Application group (the only type currently in use)
-ipcMain.handle('db:addAuthorization', async (_, { itemId, sidHex, ownerSidHex, authType }) => {
+// ── Write — Application Groups ────────────────────────────────────────────────
+
+ipcMain.handle('db:createApplicationGroup', async (_, { applicationId, name, description }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('appId', sql.Int, applicationId)
+      .input('name',  sql.NVarChar, name)
+      .input('desc',  sql.NVarChar, description || '')
+      .query(`
+        INSERT INTO netsqlazman_ApplicationGroupsTable
+          (ApplicationId, Name, Description, GroupType, objectSid, LDAPQuery)
+        OUTPUT
+          INSERTED.ApplicationGroupId,
+          INSERTED.ApplicationId,
+          INSERTED.Name,
+          INSERTED.Description,
+          INSERTED.GroupType,
+          CONVERT(nvarchar(128), INSERTED.objectSid, 1) AS SidHex
+        VALUES (@appId, @name, @desc, 0, CAST(NEWID() AS varbinary(16)), NULL)
+      `)
+    return { data: r.recordset[0] }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:updateApplicationGroup', async (_, { groupId, name, description }) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
     await currentPool.request()
-      .input('itemId',   sql.Int, itemId)
-      .input('authType', sql.Int, authType)
+      .input('groupId', sql.Int, groupId)
+      .input('name',    sql.NVarChar, name)
+      .input('desc',    sql.NVarChar, description || '')
+      .query(`UPDATE netsqlazman_ApplicationGroupsTable
+              SET Name = @name, Description = @desc
+              WHERE ApplicationGroupId = @groupId`)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:deleteApplicationGroup', async (_, groupId) => {
+  if (!currentPool) return { error: 'Not connected' }
+  const t = new sql.Transaction(currentPool)
+  try {
+    await t.begin()
+
+    const sidRes = await new sql.Request(t)
+      .input('groupId', sql.Int, groupId)
+      .query('SELECT objectSid FROM netsqlazman_ApplicationGroupsTable WHERE ApplicationGroupId = @groupId')
+
+    if (!sidRes.recordset.length) {
+      await t.rollback()
+      return { error: 'Group not found' }
+    }
+    const sid = sidRes.recordset[0].objectSid
+
+    // Remove all members of this group
+    await new sql.Request(t)
+      .input('groupId', sql.Int, groupId)
+      .query('DELETE FROM netsqlazman_ApplicationGroupMembersTable WHERE ApplicationGroupId = @groupId')
+
+    // Remove this group from any parent group it belongs to
+    await new sql.Request(t)
+      .input('sid', sql.VarBinary, sid)
+      .query('DELETE FROM netsqlazman_ApplicationGroupMembersTable WHERE objectSid = @sid')
+
+    // Remove authorizations where this group is the principal
+    await new sql.Request(t)
+      .input('sid', sql.VarBinary, sid)
+      .query('DELETE FROM netsqlazman_AuthorizationsTable WHERE objectSid = @sid')
+
+    await new sql.Request(t)
+      .input('groupId', sql.Int, groupId)
+      .query('DELETE FROM netsqlazman_ApplicationGroupsTable WHERE ApplicationGroupId = @groupId')
+
+    await t.commit()
+    return { success: true }
+  } catch (err) {
+    await t.rollback().catch(() => {})
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:addGroupMember', async (_, { groupId, sidHex, whereDefined, isMember }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const sidBuf = Buffer.from(sidHex.replace(/^0x/i, ''), 'hex')
+    await currentPool.request()
+      .input('groupId',      sql.Int,     groupId)
+      .input('whereDefined', sql.Int,     whereDefined)
+      .input('isMember',     sql.Bit,     isMember ? 1 : 0)
+      .input('sid',          sql.VarBinary, sidBuf)
+      .query(`INSERT INTO netsqlazman_ApplicationGroupMembersTable
+                (ApplicationGroupId, WhereDefined, IsMember, objectSid)
+              VALUES (@groupId, @whereDefined, @isMember, @sid)`)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:removeGroupMember', async (_, memberId) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('memberId', sql.Int, memberId)
+      .query('DELETE FROM netsqlazman_ApplicationGroupMembersTable WHERE ApplicationGroupMemberId = @memberId')
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:toggleGroupMember', async (_, { memberId, isMember }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('memberId', sql.Int, memberId)
+      .input('isMember', sql.Bit, isMember ? 1 : 0)
+      .query(`UPDATE netsqlazman_ApplicationGroupMembersTable
+              SET IsMember = @isMember WHERE ApplicationGroupMemberId = @memberId`)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+// ── Write — Items ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('db:createItem', async (_, { applicationId, name, description, itemType }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('appId',    sql.Int,      applicationId)
+      .input('name',     sql.NVarChar, name)
+      .input('desc',     sql.NVarChar, description || '')
+      .input('itemType', sql.Int,      itemType)
+      .query(`
+        INSERT INTO netsqlazman_ItemsTable (ApplicationId, Name, Description, ItemType)
+        OUTPUT INSERTED.ItemId, INSERTED.ApplicationId, INSERTED.Name, INSERTED.Description, INSERTED.ItemType
+        VALUES (@appId, @name, @desc, @itemType)
+      `)
+    return { data: r.recordset[0] }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:updateItem', async (_, { itemId, name, description }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('itemId', sql.Int,      itemId)
+      .input('name',   sql.NVarChar, name)
+      .input('desc',   sql.NVarChar, description || '')
+      .query(`UPDATE netsqlazman_ItemsTable SET Name = @name, Description = @desc WHERE ItemId = @itemId`)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:deleteItem', async (_, itemId) => {
+  if (!currentPool) return { error: 'Not connected' }
+  const t = new sql.Transaction(currentPool)
+  try {
+    await t.begin()
+
+    // Remove from hierarchy as both child and parent
+    await new sql.Request(t)
+      .input('itemId', sql.Int, itemId)
+      .query('DELETE FROM netsqlazman_ItemsHierarchyTable WHERE ItemId = @itemId OR MemberOfItemId = @itemId')
+
+    // Remove authorizations for this item
+    await new sql.Request(t)
+      .input('itemId', sql.Int, itemId)
+      .query('DELETE FROM netsqlazman_AuthorizationsTable WHERE ItemId = @itemId')
+
+    await new sql.Request(t)
+      .input('itemId', sql.Int, itemId)
+      .query('DELETE FROM netsqlazman_ItemsTable WHERE ItemId = @itemId')
+
+    await t.commit()
+    return { success: true }
+  } catch (err) {
+    await t.rollback().catch(() => {})
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:addItemChild', async (_, { parentItemId, childItemId }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('childItemId',  sql.Int, childItemId)
+      .input('parentItemId', sql.Int, parentItemId)
+      .query(`
+        IF NOT EXISTS (
+          SELECT 1 FROM netsqlazman_ItemsHierarchyTable
+          WHERE ItemId = @childItemId AND MemberOfItemId = @parentItemId
+        )
+          INSERT INTO netsqlazman_ItemsHierarchyTable (ItemId, MemberOfItemId)
+          VALUES (@childItemId, @parentItemId)
+      `)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:removeItemChild', async (_, { parentItemId, childItemId }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('childItemId',  sql.Int, childItemId)
+      .input('parentItemId', sql.Int, parentItemId)
+      .query(`DELETE FROM netsqlazman_ItemsHierarchyTable
+              WHERE ItemId = @childItemId AND MemberOfItemId = @parentItemId`)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+// ── Write — Authorizations ────────────────────────────────────────────────────
+
+ipcMain.handle('db:addAuthorization', async (_, { itemId, sidHex, ownerSidHex, authType, sidWhereDefined = 1 }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const sidBuf   = Buffer.from(sidHex.replace(/^0x/i, ''),      'hex')
+    const ownerBuf = Buffer.from(ownerSidHex.replace(/^0x/i, ''), 'hex')
+    await currentPool.request()
+      .input('itemId',       sql.Int,      itemId)
+      .input('authType',     sql.Int,      authType)
+      .input('sidWhere',     sql.Int,      sidWhereDefined)
+      .input('sid',          sql.VarBinary, sidBuf)
+      .input('ownerSid',     sql.VarBinary, ownerBuf)
       .query(`
         INSERT INTO netsqlazman_AuthorizationsTable
           (ItemId, ownerSid, ownerSidWhereDefined, objectSid, objectSidWhereDefined, AuthorizationType, ValidFrom, ValidTo)
-        VALUES (
-          @itemId,
-          CONVERT(varbinary(MAX), '${ownerSidHex}', 1),
-          1,
-          CONVERT(varbinary(MAX), '${sidHex}', 1),
-          1,
-          @authType,
-          NULL, NULL
-        )
+        VALUES (@itemId, @ownerSid, 1, @sid, @sidWhere, @authType, NULL, NULL)
       `)
+    return { success: true }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:updateAuthorization', async (_, { authId, authType }) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    await currentPool.request()
+      .input('authId',   sql.Int, authId)
+      .input('authType', sql.Int, authType)
+      .query(`UPDATE netsqlazman_AuthorizationsTable SET AuthorizationType = @authType WHERE AuthorizationId = @authId`)
     return { success: true }
   } catch (err) {
     return { error: err.message }
