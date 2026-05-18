@@ -18,6 +18,7 @@ win:
     - target: nsis
       arch:
         - x64
+        - arm64
   # Signing — credentials supplied via env vars (WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD)
   # Set signingHashAlgorithms to sha256 only (sha1 is deprecated)
   signingHashAlgorithms:
