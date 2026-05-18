@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+contextBridge.exposeInMainWorld('connections', {
+  load:   ()     => ipcRenderer.invoke('connections:load'),
+  save:   (conn) => ipcRenderer.invoke('connections:save', conn),
+  delete: (id)   => ipcRenderer.invoke('connections:delete', id),
+})
+
 contextBridge.exposeInMainWorld('db', {
   connect:                  (config)           => ipcRenderer.invoke('db:connect', config),
   disconnect:               ()                 => ipcRenderer.invoke('db:disconnect'),

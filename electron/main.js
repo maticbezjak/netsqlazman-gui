@@ -1,6 +1,36 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
-const sql = require('mssql')
+const fs   = require('fs')
+const sql  = require('mssql')
+
+// ── Saved connections ─────────────────────────────────────────────────────────
+
+function connectionsFile() {
+  return path.join(app.getPath('userData'), 'connections.json')
+}
+function readConnections() {
+  try { return JSON.parse(fs.readFileSync(connectionsFile(), 'utf8')) } catch { return [] }
+}
+function writeConnections(list) {
+  fs.writeFileSync(connectionsFile(), JSON.stringify(list, null, 2))
+}
+
+ipcMain.handle('connections:load', () => readConnections())
+
+ipcMain.handle('connections:save', (_, conn) => {
+  const list = readConnections()
+  const idx  = list.findIndex((c) => c.id === conn.id)
+  if (idx >= 0) list[idx] = conn
+  else { conn.id = Date.now().toString(); list.push(conn) }
+  writeConnections(list)
+  return list
+})
+
+ipcMain.handle('connections:delete', (_, id) => {
+  const list = readConnections().filter((c) => c.id !== id)
+  writeConnections(list)
+  return list
+})
 
 let mainWindow
 let currentPool = null
