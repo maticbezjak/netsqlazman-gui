@@ -1,11 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
-# Certificate: MantoElectronEVCodeSign (PKCS#12, expires 2028-11-08)
-#              stored in MantoElectron Key Vault, linked via deploy-vault-secrets.
-#
-# Key Vault PKCS#12 exports use an empty password — no separate password secret
-# is needed. WIN_CSC_KEY_PASSWORD is intentionally set to empty string.
+# Signing: AzureSignTool calls Key Vault directly — private key never exported.
+# Service principal credentials stored in deploy-vault-secrets variable group.
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
@@ -40,31 +37,9 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
-    # ── Decode cert from Key Vault → temp .pfx ───────────────────────────
-    # Key Vault exports PKCS#12 with AES-256-CBC on the private-key bag.
-    # The signtool bundled with electron-builder only handles 3DES, causing
-    # "After Private Key filter, 0 certs were left".
-    # Fix: use Git's OpenSSL 1.x (always on windows-latest) which reads any
-    # PKCS#12 and writes 3DES by default — no legacy provider DLL needed.
-    - powershell: |
-        $openssl  = "C:\Program Files\Git\usr\bin\openssl.exe"
-        $origPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing_orig.pfx"
-        $pemPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pem"
-        $outPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
-
-        [IO.File]::WriteAllBytes($origPath, [Convert]::FromBase64String('$(MantoElectronEVCodeSign)'))
-
-        & $openssl pkcs12 -in $origPath -out $pemPath  -nodes  -passin pass:
-        if ($LASTEXITCODE -ne 0) { throw "openssl extract failed" }
-
-        & $openssl pkcs12 -in $pemPath  -out $outPath  -export -passout pass:
-        if ($LASTEXITCODE -ne 0) { throw "openssl repack failed" }
-
-        Remove-Item $pemPath  -Force -ErrorAction SilentlyContinue
-        Remove-Item $origPath -Force -ErrorAction SilentlyContinue
-
-        Write-Host "##vso[task.setvariable variable=CERT_PATH]$outPath"
-      displayName: 'Decode & re-encode EV signing certificate (AES→3DES)'
+    # ── AzureSignTool — signs via Key Vault API, no PFX export needed ─────
+    - script: dotnet tool install --global AzureSignTool
+      displayName: 'Install AzureSignTool'
 
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
@@ -74,15 +49,11 @@ stages:
     - script: npx electron-builder --publish never
       displayName: 'Package & sign (electron-builder)'
       env:
-        WIN_CSC_LINK: $(CERT_PATH)
-        WIN_CSC_KEY_PASSWORD: ''
-
-    # ── Always remove the temp cert ───────────────────────────────────────
-    - powershell: |
-        if (Test-Path "$(CERT_PATH)") { Remove-Item "$(CERT_PATH)" -Force }
-        Write-Host "Certificate cleaned up."
-      displayName: 'Remove temp certificate'
-      condition: always()
+        AZURE_KEY_VAULT_URL:    $(AZURE_KEY_VAULT_URL)
+        AZURE_CLIENT_ID:        $(AZURE_CLIENT_ID)
+        AZURE_CLIENT_SECRET:    $(AZURE_CLIENT_SECRET)
+        AZURE_TENANT_ID:        $(AZURE_TENANT_ID)
+        AZURE_CERT_NAME:        $(AZURE_CERT_NAME)
 
     # ── Publish installer as pipeline artifact ────────────────────────────
     - task: CopyFiles@2
