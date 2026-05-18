@@ -1,17 +1,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
-# Pre-requisites (one-time setup):
-#   1. In Key Vault "MantoElectron", add two secrets:
-#        ElectronSigningCert      → base64-encoded .pfx contents
-#        ElectronSigningPassword  → password for the .pfx
-#      PowerShell to encode your .pfx:
-#        [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\cert.pfx")) | clip
+# Certificate: MantoElectronEVCodeSign (PKCS#12, expires 2028-11-08)
+#              stored in MantoElectron Key Vault, linked via deploy-vault-secrets.
 #
-#   2. In the "deploy-vault-secrets" variable group, click "+ Add" and add:
-#        ElectronSigningCert
-#        ElectronSigningPassword
-#      (They will sync automatically from MantoElectron Key Vault)
+# Key Vault PKCS#12 exports use an empty password — no separate password secret
+# is needed. WIN_CSC_KEY_PASSWORD is intentionally set to empty string.
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
@@ -46,12 +40,14 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
-    # ── Decode cert from Key Vault secret → temp .pfx ────────────────────
+    # ── Decode cert from Key Vault → temp .pfx ───────────────────────────
+    # MantoElectronEVCodeSign is a PKCS#12 secret from the MantoElectron vault.
+    # Key Vault PKCS#12 exports have an empty password.
     - powershell: |
         $certPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
-        [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String('$(ElectronSigningCert)'))
+        [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String('$(MantoElectronEVCodeSign)'))
         Write-Host "##vso[task.setvariable variable=CERT_PATH]$certPath"
-      displayName: 'Decode signing certificate'
+      displayName: 'Decode EV signing certificate'
 
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
@@ -62,7 +58,7 @@ stages:
       displayName: 'Package & sign (electron-builder)'
       env:
         WIN_CSC_LINK: $(CERT_PATH)
-        WIN_CSC_KEY_PASSWORD: $(ElectronSigningPassword)
+        WIN_CSC_KEY_PASSWORD: ''
 
     # ── Always remove the temp cert ───────────────────────────────────────
     - powershell: |
