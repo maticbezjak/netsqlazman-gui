@@ -1,0 +1,106 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NetSqlAzMan Manager — Azure DevOps CI/CD
+#
+# Setup checklist (one-time, in Azure DevOps):
+#   1. Pipelines > Library > Variable Groups → create "netsqlazman-signing"
+#      Add variables (mark secrets as 🔒):
+#        KEY_VAULT_NAME           the name of your Key Vault (e.g. my-keyvault)
+#        SIGNING_CERT_SECRET      name of the base64-encoded .pfx secret in KV
+#        SIGNING_CERT_PASSWORD    name of the .pfx password secret in KV
+#   2. Project Settings > Service Connections → create an Azure Resource Manager
+#      connection named "AzureServiceConnection" with access to the Key Vault.
+#   3. In the Key Vault, grant the service principal:
+#        Secret permissions: Get
+#   4. Store your .pfx as a base64 string in Key Vault:
+#        $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))
+#        az keyvault secret set --vault-name <name> --name <secret> --value $b64
+# ─────────────────────────────────────────────────────────────────────────────
+
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    exclude:
+      - '*.md'
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  - group: netsqlazman-signing
+  - name: NODE_VERSION
+    value: '20.x'
+
+stages:
+
+# ── Build & Sign ─────────────────────────────────────────────────────────────
+- stage: Build
+  displayName: 'Build & Sign installer'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build Electron app'
+    steps:
+
+    - task: NodeTool@0
+      displayName: 'Install Node.js $(NODE_VERSION)'
+      inputs:
+        versionSpec: $(NODE_VERSION)
+
+    - script: npm ci
+      displayName: 'Install dependencies (npm ci)'
+
+    # ── Retrieve certificate from Key Vault ───────────────────────────────
+    - task: AzureKeyVault@2
+      displayName: 'Fetch secrets from Key Vault'
+      inputs:
+        azureSubscription: 'AzureServiceConnection'
+        KeyVaultName: '$(KEY_VAULT_NAME)'
+        SecretsFilter: '$(SIGNING_CERT_SECRET),$(SIGNING_CERT_PASSWORD)'
+        RunAsPreJob: false
+
+    # Decode base64 .pfx → temp file, expose path as pipeline variable
+    - powershell: |
+        $certPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
+        $b64 = '$($(SIGNING_CERT_SECRET))'
+        [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($b64))
+        Write-Host "##vso[task.setvariable variable=CERT_PATH]$certPath"
+        Write-Host "Certificate written to $certPath"
+      displayName: 'Decode certificate to temp file'
+
+    # ── Build ─────────────────────────────────────────────────────────────
+    - script: npm run build:renderer
+      displayName: 'Build renderer (Vite)'
+
+    - script: npx electron-builder --publish never
+      displayName: 'Package & sign with electron-builder'
+      env:
+        WIN_CSC_LINK: $(CERT_PATH)
+        WIN_CSC_KEY_PASSWORD: $($(SIGNING_CERT_PASSWORD))
+
+    # ── Clean up cert immediately ─────────────────────────────────────────
+    - powershell: |
+        if (Test-Path "$(CERT_PATH)") {
+          Remove-Item "$(CERT_PATH)" -Force
+          Write-Host "Certificate removed."
+        }
+      displayName: 'Remove temp certificate'
+      condition: always()
+
+    # ── Publish installer artifact ────────────────────────────────────────
+    - task: CopyFiles@2
+      displayName: 'Collect installer files'
+      inputs:
+        SourceFolder: 'release'
+        Contents: |
+          **/*.exe
+          **/*.yml
+          !builder-debug.yml
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/installer'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish installer artifact'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer'
+        ArtifactName: 'NetSqlAzMan-Installer'
+        publishLocation: 'Container'
