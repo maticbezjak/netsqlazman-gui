@@ -42,23 +42,28 @@ stages:
 
     # ── Decode cert from Key Vault → temp .pfx ───────────────────────────
     # Key Vault exports PKCS#12 with AES-256-CBC on the private-key bag.
-    # The signtool version bundled with electron-builder only handles 3DES,
-    # which causes "After Private Key filter, 0 certs were left".
-    # Fix: round-trip through OpenSSL to re-encode with legacy 3DES.
+    # The signtool bundled with electron-builder only handles 3DES, causing
+    # "After Private Key filter, 0 certs were left".
+    # Fix: use Git's OpenSSL 1.x (always on windows-latest) which reads any
+    # PKCS#12 and writes 3DES by default — no legacy provider DLL needed.
     - powershell: |
-        $origPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing_orig.pfx"
-        $pemPath   = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pem"
-        $fixedPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
+        $openssl  = "C:\Program Files\Git\usr\bin\openssl.exe"
+        $origPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing_orig.pfx"
+        $pemPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pem"
+        $outPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
 
         [IO.File]::WriteAllBytes($origPath, [Convert]::FromBase64String('$(MantoElectronEVCodeSign)'))
 
-        openssl pkcs12 -in $origPath -out $pemPath   -nodes    -passin pass: -legacy
-        openssl pkcs12 -in $pemPath  -out $fixedPath -export   -passout pass: -legacy
+        & $openssl pkcs12 -in $origPath -out $pemPath  -nodes  -passin pass:
+        if ($LASTEXITCODE -ne 0) { throw "openssl extract failed" }
 
-        Remove-Item $pemPath  -Force
-        Remove-Item $origPath -Force
+        & $openssl pkcs12 -in $pemPath  -out $outPath  -export -passout pass:
+        if ($LASTEXITCODE -ne 0) { throw "openssl repack failed" }
 
-        Write-Host "##vso[task.setvariable variable=CERT_PATH]$fixedPath"
+        Remove-Item $pemPath  -Force -ErrorAction SilentlyContinue
+        Remove-Item $origPath -Force -ErrorAction SilentlyContinue
+
+        Write-Host "##vso[task.setvariable variable=CERT_PATH]$outPath"
       displayName: 'Decode & re-encode EV signing certificate (AES→3DES)'
 
     # ── Vite renderer build ───────────────────────────────────────────────
