@@ -49,11 +49,11 @@ stages:
     - script: npx electron-builder --publish never
       displayName: 'Package & sign (electron-builder)'
       env:
-        AZURE_KEY_VAULT_URL:    $(AZURE_KEY_VAULT_URL)
-        AZURE_CLIENT_ID:        $(AZURE_CLIENT_ID)
-        AZURE_CLIENT_SECRET:    $(AZURE_CLIENT_SECRET)
-        AZURE_TENANT_ID:        $(AZURE_TENANT_ID)
-        AZURE_CERT_NAME:        $(AZURE_CERT_NAME)
+        AZURE_KEY_VAULT_URL:    $(AZURE-KEY-VAULT-URL)
+        AZURE_CLIENT_ID:        $(AZURE-CLIENT-ID)
+        AZURE_CLIENT_SECRET:    $(AZURE-CLIENT-SECRET)
+        AZURE_TENANT_ID:        $(AZURE-TENANT-ID)
+        AZURE_CERT_NAME:        $(AZURE-CERT-NAME)
 
     # ── Publish installer as pipeline artifact ────────────────────────────
     - task: CopyFiles@2
