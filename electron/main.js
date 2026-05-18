@@ -158,6 +158,65 @@ ipcMain.handle('db:getItemMembers', async (_, itemId) => {
   }
 })
 
+// Returns items of a specific type (0=Role, 1=Task, 2=Operation) for an application
+ipcMain.handle('db:getItemsByType', async (_, applicationId, itemType) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('appId',    sql.Int, applicationId)
+      .input('itemType', sql.Int, itemType)
+      .query(`SELECT ItemId, ApplicationId, Name, Description, ItemType
+              FROM netsqlazman_ItemsTable
+              WHERE ApplicationId = @appId AND ItemType = @itemType
+              ORDER BY Name`)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+// Returns members of a specific application group
+ipcMain.handle('db:getApplicationGroupMembers', async (_, groupId) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('groupId', sql.Int, groupId)
+      .query(`
+        SELECT
+          m.ApplicationGroupMemberId,
+          m.ApplicationGroupId,
+          m.WhereDefined,
+          m.IsMember,
+          CONVERT(nvarchar(128), m.objectSid, 1) AS SidHex,
+          CASE m.WhereDefined
+            WHEN 0 THEN sg.Name
+            WHEN 1 THEN ag.Name
+            WHEN 4 THEN du.DBUserName
+            ELSE CONVERT(nvarchar(128), m.objectSid, 1)
+          END AS MemberName,
+          CASE m.WhereDefined
+            WHEN 0 THEN 'Store'
+            WHEN 1 THEN 'Application'
+            WHEN 2 THEN 'LDAP'
+            WHEN 3 THEN 'Local'
+            WHEN 4 THEN 'Database'
+          END AS WhereDefinedLabel
+        FROM netsqlazman_ApplicationGroupMembersTable m
+        LEFT JOIN netsqlazman_ApplicationGroupsTable ag
+          ON m.objectSid = ag.objectSid AND m.WhereDefined = 1
+        LEFT JOIN netsqlazman_StoreGroupsTable sg
+          ON m.objectSid = sg.objectSid AND m.WhereDefined = 0
+        LEFT JOIN netsqlazman_DatabaseUsers du
+          ON m.objectSid = du.DBUserSid AND m.WhereDefined = 4
+        WHERE m.ApplicationGroupId = @groupId
+        ORDER BY m.IsMember DESC, m.WhereDefined, MemberName
+      `)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
 // Returns all application groups — these are the authorizable principals (users + groups)
 ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
   if (!currentPool) return { error: 'Not connected' }
