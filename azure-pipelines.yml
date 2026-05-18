@@ -41,13 +41,25 @@ stages:
       displayName: 'Install dependencies'
 
     # ── Decode cert from Key Vault → temp .pfx ───────────────────────────
-    # MantoElectronEVCodeSign is a PKCS#12 secret from the MantoElectron vault.
-    # Key Vault PKCS#12 exports have an empty password.
+    # Key Vault exports PKCS#12 with AES-256-CBC on the private-key bag.
+    # The signtool version bundled with electron-builder only handles 3DES,
+    # which causes "After Private Key filter, 0 certs were left".
+    # Fix: round-trip through OpenSSL to re-encode with legacy 3DES.
     - powershell: |
-        $certPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
-        [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String('$(MantoElectronEVCodeSign)'))
-        Write-Host "##vso[task.setvariable variable=CERT_PATH]$certPath"
-      displayName: 'Decode EV signing certificate'
+        $origPath  = Join-Path $env:AGENT_TEMPDIRECTORY "signing_orig.pfx"
+        $pemPath   = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pem"
+        $fixedPath = Join-Path $env:AGENT_TEMPDIRECTORY "signing.pfx"
+
+        [IO.File]::WriteAllBytes($origPath, [Convert]::FromBase64String('$(MantoElectronEVCodeSign)'))
+
+        openssl pkcs12 -in $origPath -out $pemPath   -nodes    -passin pass: -legacy
+        openssl pkcs12 -in $pemPath  -out $fixedPath -export   -passout pass: -legacy
+
+        Remove-Item $pemPath  -Force
+        Remove-Item $origPath -Force
+
+        Write-Host "##vso[task.setvariable variable=CERT_PATH]$fixedPath"
+      displayName: 'Decode & re-encode EV signing certificate (AES→3DES)'
 
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
