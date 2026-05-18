@@ -113,6 +113,7 @@ ipcMain.handle('db:getItems', async (_, applicationId) => {
   }
 })
 
+// Uses the built-in view which resolves binary SIDs to names via netsqlazman_GetNameFromSid()
 ipcMain.handle('db:getAuthorizations', async (_, itemId) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
@@ -120,23 +121,17 @@ ipcMain.handle('db:getAuthorizations', async (_, itemId) => {
       .input('itemId', sql.Int, itemId)
       .query(`
         SELECT
-          a.AuthorizationId,
-          a.ItemId,
-          a.SID,
-          a.AuthorizationType,
-          a.ValidFrom,
-          a.ValidTo,
-          ISNULL(u.UserName, g.GroupName) AS DisplayName,
-          CASE
-            WHEN u.UserName  IS NOT NULL THEN 'User'
-            WHEN g.GroupName IS NOT NULL THEN 'Group'
-            ELSE 'Unknown'
-          END AS SIDType
-        FROM netsqlazman_AuthorizationsTable a
-        LEFT JOIN netsqlazman_StorageUsersTable  u ON a.SID = u.CustomSid
-        LEFT JOIN netsqlazman_StorageGroupsTable g ON a.SID = g.SID
-        WHERE a.ItemId = @itemId
-        ORDER BY DisplayName
+          AuthorizationId,
+          ItemId,
+          Name,
+          SidWhereDefined,
+          AuthorizationType,
+          ValidFrom,
+          ValidTo,
+          CONVERT(nvarchar(128), objectSid, 1) AS SidHex
+        FROM netsqlazman_AuthorizationView
+        WHERE ItemId = @itemId
+        ORDER BY Name
       `)
     return { data: r.recordset }
   } catch (err) {
@@ -144,17 +139,18 @@ ipcMain.handle('db:getAuthorizations', async (_, itemId) => {
   }
 })
 
+// Returns child items (operations/tasks) that belong to the given role/task
 ipcMain.handle('db:getItemMembers', async (_, itemId) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
     const r = await currentPool.request()
       .input('itemId', sql.Int, itemId)
       .query(`
-        SELECT ii.MemberItemId, i.Name AS MemberName, i.ItemType AS MemberType, i.Description
-        FROM netsqlazman_ItemItemsTable ii
-        JOIN netsqlazman_ItemsTable i ON ii.MemberItemId = i.ItemId
-        WHERE ii.ItemId = @itemId
-        ORDER BY i.Name
+        SELECT i.ItemId, i.Name, i.Description, i.ItemType
+        FROM netsqlazman_ItemsHierarchyTable h
+        JOIN netsqlazman_ItemsTable i ON h.ItemId = i.ItemId
+        WHERE h.MemberOfItemId = @itemId
+        ORDER BY i.ItemType, i.Name
       `)
     return { data: r.recordset }
   } catch (err) {
@@ -162,26 +158,23 @@ ipcMain.handle('db:getItemMembers', async (_, itemId) => {
   }
 })
 
-ipcMain.handle('db:getUsers', async () => {
+// Returns all application groups — these are the authorizable principals (users + groups)
+ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
-    const r = await currentPool.request().query(`
-      SELECT CustomSid AS SID, UserName AS DisplayName, 'User' AS SIDType
-      FROM netsqlazman_StorageUsersTable ORDER BY UserName
-    `)
-    return { data: r.recordset }
-  } catch (err) {
-    return { error: err.message }
-  }
-})
-
-ipcMain.handle('db:getGroups', async () => {
-  if (!currentPool) return { error: 'Not connected' }
-  try {
-    const r = await currentPool.request().query(`
-      SELECT SID, GroupName AS DisplayName, 'Group' AS SIDType
-      FROM netsqlazman_StorageGroupsTable ORDER BY GroupName
-    `)
+    const r = await currentPool.request()
+      .input('appId', sql.Int, applicationId)
+      .query(`
+        SELECT
+          ApplicationGroupId,
+          Name,
+          Description,
+          GroupType,
+          CONVERT(nvarchar(128), objectSid, 1) AS SidHex
+        FROM netsqlazman_ApplicationGroupsTable
+        WHERE ApplicationId = @appId
+        ORDER BY Name
+      `)
     return { data: r.recordset }
   } catch (err) {
     return { error: err.message }
@@ -190,16 +183,29 @@ ipcMain.handle('db:getGroups', async () => {
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
-ipcMain.handle('db:addAuthorization', async (_, { itemId, sid, authType }) => {
+// sidHex:        hex string of the principal's objectSid (e.g. '0xD244B2...')
+// ownerSidHex:   hex string of the admin/owner's SID (can be same as sidHex or MantoAdmin's)
+// authType:      0=NEUTRAL, 1=ALLOW, 2=DENY, 3=ALLOWWITHDELEGATION
+// whereDefined:  1=Application group (the only type currently in use)
+ipcMain.handle('db:addAuthorization', async (_, { itemId, sidHex, ownerSidHex, authType }) => {
   if (!currentPool) return { error: 'Not connected' }
   try {
     await currentPool.request()
-      .input('itemId',   sql.Int,         itemId)
-      .input('sid',      sql.NVarChar(200), sid)
-      .input('authType', sql.Int,          authType)
-      .query(`INSERT INTO netsqlazman_AuthorizationsTable
-                (ItemId, SID, AuthorizationType, ValidFrom, ValidTo)
-              VALUES (@itemId, @sid, @authType, NULL, NULL)`)
+      .input('itemId',   sql.Int, itemId)
+      .input('authType', sql.Int, authType)
+      .query(`
+        INSERT INTO netsqlazman_AuthorizationsTable
+          (ItemId, ownerSid, ownerSidWhereDefined, objectSid, objectSidWhereDefined, AuthorizationType, ValidFrom, ValidTo)
+        VALUES (
+          @itemId,
+          CONVERT(varbinary(MAX), '${ownerSidHex}', 1),
+          1,
+          CONVERT(varbinary(MAX), '${sidHex}', 1),
+          1,
+          @authType,
+          NULL, NULL
+        )
+      `)
     return { success: true }
   } catch (err) {
     return { error: err.message }

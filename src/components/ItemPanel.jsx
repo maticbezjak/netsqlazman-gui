@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import AuthTable from './AuthTable'
 
-const ITEM_TYPE = { 0: 'Operation', 1: 'Task', 2: 'Role', 3: 'Group' }
-const ITEM_ICON = { 0: '⚡', 1: '📋', 2: '👤', 3: '👥' }
-const MEMBER_TYPE = { 0: 'Operation', 1: 'Task', 2: 'Role', 3: 'Group' }
+// ItemType values as returned by the DB
+const ITEM_TYPE = { 0: 'Role', 1: 'Task', 2: 'Operation' }
+const ITEM_ICON = { 0: '👤', 1: '📋', 2: '⚡' }
 
 export default function ItemPanel({ item }) {
   const [tab, setTab]                   = useState('auth')
@@ -22,10 +22,8 @@ export default function ItemPanel({ item }) {
       window.db.getAuthorizations(item.ItemId),
       window.db.getItemMembers(item.ItemId),
     ])
-    if (authRes.data)    setAuthorizations(authRes.data)
-    else                 setAuthorizations([])
-    if (membersRes.data) setMembers(membersRes.data)
-    else                 setMembers([])
+    setAuthorizations(authRes.data || [])
+    setMembers(membersRes.data || [])
     setLoading(false)
   }
 
@@ -41,11 +39,11 @@ export default function ItemPanel({ item }) {
   return (
     <div className="item-panel">
       <div className="item-header">
-        <span className="item-icon-lg">{ITEM_ICON[item.ItemType]}</span>
+        <span className="item-icon-lg">{ITEM_ICON[item.ItemType] ?? '•'}</span>
         <div>
           <h1 className="item-name">{item.Name}</h1>
           <div className="item-meta">
-            <span className="badge badge-type">{ITEM_TYPE[item.ItemType]}</span>
+            <span className="badge badge-type">{ITEM_TYPE[item.ItemType] ?? item.ItemType}</span>
             {item.Description && <span className="item-desc">{item.Description}</span>}
           </div>
         </div>
@@ -79,7 +77,10 @@ export default function ItemPanel({ item }) {
 }
 
 function MembersTable({ members }) {
-  if (!members.length) return <div className="empty-table">No members defined for this item.</div>
+  const TYPE_LABEL = { 0: 'Role', 1: 'Task', 2: 'Operation' }
+  const TYPE_ICON  = { 0: '👤', 1: '📋', 2: '⚡' }
+
+  if (!members.length) return <div className="empty-table">No child items defined for this item.</div>
   return (
     <table className="data-table">
       <thead>
@@ -87,9 +88,9 @@ function MembersTable({ members }) {
       </thead>
       <tbody>
         {members.map((m) => (
-          <tr key={m.MemberItemId}>
-            <td>{m.MemberName}</td>
-            <td><span className="badge">{MEMBER_TYPE[m.MemberType] ?? m.MemberType}</span></td>
+          <tr key={m.ItemId}>
+            <td>{TYPE_ICON[m.ItemType]} {m.Name}</td>
+            <td><span className="badge">{TYPE_LABEL[m.ItemType] ?? m.ItemType}</span></td>
             <td className="muted">{m.Description || '—'}</td>
           </tr>
         ))}

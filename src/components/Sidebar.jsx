@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
-const ITEM_ICON  = { 0: '⚡', 1: '📋', 2: '👤', 3: '👥' }
-const ITEM_LABEL = { 0: 'Op',   1: 'Task', 2: 'Role', 3: 'Grp' }
+const ITEM_ICON  = { 0: '👤', 1: '📋', 2: '⚡' }
+const ITEM_LABEL = { 0: 'Role', 1: 'Task', 2: 'Op' }
 
 export default function Sidebar({ selectedItem, onItemSelect }) {
   const [stores, setStores]   = useState([])

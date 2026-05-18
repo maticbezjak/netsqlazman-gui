@@ -272,9 +272,10 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.auth-badge.allow   { background: #dcfce7; color: #16a34a; }
-.auth-badge.deny    { background: #fee2e2; color: #dc2626; }
-.auth-badge.neutral { background: #f1f5f9; color: #64748b; }
+.auth-badge.allow    { background: #dcfce7; color: #16a34a; }
+.auth-badge.deny     { background: #fee2e2; color: #dc2626; }
+.auth-badge.neutral  { background: #f1f5f9; color: #64748b; }
+.auth-badge.delegate { background: #dbeafe; color: #1d4ed8; }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */
 .table-toolbar { margin-bottom: 14px; }
