@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const sql  = require('mssql')
+const { autoUpdater } = require('electron-updater')
 
 // ── Saved connections ─────────────────────────────────────────────────────────
 
@@ -58,7 +59,29 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow)
+function initAutoUpdater() {
+  if (process.env.VITE_DEV_SERVER_URL) return  // skip in dev mode
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version of NetSqlAzMan Manager has been downloaded.',
+      detail: 'Restart the application to apply the update.',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
+  })
+
+  autoUpdater.checkForUpdatesAndNotify()
+}
+
+app.whenReady().then(() => {
+  createWindow()
+  initAutoUpdater()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

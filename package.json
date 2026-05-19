@@ -1,6 +1,6 @@
 {
   "name": "netsqlazman-gui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Desktop GUI for managing NetSqlAzMan authorization stores",
   "main": "electron/main.js",
   "author": "",
@@ -12,6 +12,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.16.0",
     "mssql": "^12.5.2"
   },

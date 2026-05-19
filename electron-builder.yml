@@ -4,6 +4,11 @@ productName: NetSqlAzMan Manager
 directories:
   output: release
 
+publish:
+  - provider: github
+    owner: maticbezjak
+    repo: netsqlazman-gui
+
 files:
   - dist/**
   - electron/**

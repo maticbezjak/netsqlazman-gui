@@ -1,15 +1,23 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
-# Windows: AzureSignTool signs via Key Vault (private key never exported).
-# macOS:   self-hosted Mac Mini — cert in Keychain, .env at /Users/mantoadmin/env/.env.
-# Linux:   ubuntu-latest — produces .deb (Ubuntu) and .rpm (Fedora) packages.
+# Build numbering:
+#   master push  →  1.0.0.{BuildId}   (artifact only, no GitHub release)
+#   tag v1.2.3   →  1.2.3             (publishes to GitHub Releases → auto-update)
+#
+# Signing:
+#   Windows: AzureSignTool via Key Vault (private key never exported)
+#   macOS:   self-hosted Mac Mini — cert in Keychain, .env at /Users/mantoadmin/env/.env
+#   Linux:   no signing required
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
   branches:
     include:
       - master
+  tags:
+    include:
+      - 'v*'
   paths:
     exclude:
       - '*.md'
@@ -23,10 +31,10 @@ variables:
 stages:
 
 - stage: Build
-  displayName: 'Build & sign installer'
+  displayName: 'Build & sign Windows installer'
   jobs:
   - job: BuildJob
-    displayName: 'Electron build'
+    displayName: 'Electron Windows build'
     steps:
 
     # ── Node.js ───────────────────────────────────────────────────────────
@@ -38,6 +46,22 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
+    # ── Version + publish flag ────────────────────────────────────────────
+    - powershell: |
+        $branch = "$(Build.SourceBranch)"
+        if ($branch -like "refs/tags/v*") {
+          $version = $branch -replace 'refs/tags/v', ''
+          Write-Host "##vso[task.setvariable variable=PUBLISH_FLAG]always"
+        } else {
+          $base = node -e "process.stdout.write(require('./package.json').version)"
+          $version = "$base.$(Build.BuildId)"
+          Write-Host "##vso[task.setvariable variable=PUBLISH_FLAG]never"
+        }
+        npm version $version --no-git-tag-version --allow-same-version
+        Write-Host "##vso[build.updatebuildnumber]$version"
+        Write-Host "Building version: $version"
+      displayName: 'Set build version'
+
     # ── AzureSignTool — signs via Key Vault API, no PFX export needed ─────
     - script: dotnet tool install --global AzureSignTool
       displayName: 'Install AzureSignTool'
@@ -46,15 +70,16 @@ stages:
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: package + sign ─────────────────────────────────
-    - script: npx electron-builder --publish never
-      displayName: 'Package & sign (electron-builder)'
+    # ── electron-builder: package + sign + publish ────────────────────────
+    - script: npx electron-builder --publish $(PUBLISH_FLAG)
+      displayName: 'Package, sign & publish (electron-builder)'
       env:
         AZURE_KEY_VAULT_URL:    $(AZURE-KEY-VAULT-URL)
         AZURE_CLIENT_ID:        $(AZURE-CLIENT-ID)
         AZURE_CLIENT_SECRET:    $(AZURE-CLIENT-SECRET)
         AZURE_TENANT_ID:        $(AZURE-TENANT-ID)
         AZURE_CERT_NAME:        $(AZURE-CERT-NAME)
+        GH_TOKEN:               $(GH-TOKEN)
 
     # ── Publish installer as pipeline artifact ────────────────────────────
     - task: CopyFiles@2
@@ -90,15 +115,31 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
+    # ── Version + publish flag ────────────────────────────────────────────
+    - bash: |
+        BRANCH="$(Build.SourceBranch)"
+        if [[ "$BRANCH" == refs/tags/v* ]]; then
+          VERSION="${BRANCH#refs/tags/v}"
+          echo "##vso[task.setvariable variable=PUBLISH_FLAG]always"
+        else
+          BASE=$(node -e "process.stdout.write(require('./package.json').version)")
+          VERSION="$BASE.$(Build.BuildId)"
+          echo "##vso[task.setvariable variable=PUBLISH_FLAG]never"
+        fi
+        npm version $VERSION --no-git-tag-version --allow-same-version
+        echo "##vso[build.updatebuildnumber]$VERSION"
+        echo "Building version: $VERSION"
+      displayName: 'Set build version'
+
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: package + sign + notarize ───────────────────────
-    # Certificate is installed in the Mac Mini Keychain — no CSC vars needed.
-    # notarize.js reads APPLEID/APPLEIDPASS/TEAMID via dotenv from .env file.
-    - script: npx electron-builder --mac --publish never
-      displayName: 'Package, sign & notarize (electron-builder)'
+    # ── electron-builder: package + sign + notarize + publish ────────────
+    - script: npx electron-builder --mac --publish $(PUBLISH_FLAG)
+      displayName: 'Package, sign, notarize & publish (electron-builder)'
+      env:
+        GH_TOKEN: $(GH-TOKEN)
 
     # ── Publish dmg as pipeline artifact ─────────────────────────────────
     - task: CopyFiles@2
@@ -139,13 +180,31 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
+    # ── Version + publish flag ────────────────────────────────────────────
+    - bash: |
+        BRANCH="$(Build.SourceBranch)"
+        if [[ "$BRANCH" == refs/tags/v* ]]; then
+          VERSION="${BRANCH#refs/tags/v}"
+          echo "##vso[task.setvariable variable=PUBLISH_FLAG]always"
+        else
+          BASE=$(node -e "process.stdout.write(require('./package.json').version)")
+          VERSION="$BASE.$(Build.BuildId)"
+          echo "##vso[task.setvariable variable=PUBLISH_FLAG]never"
+        fi
+        npm version $VERSION --no-git-tag-version --allow-same-version
+        echo "##vso[build.updatebuildnumber]$VERSION"
+        echo "Building version: $VERSION"
+      displayName: 'Set build version'
+
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: .deb (Ubuntu) + .rpm (Fedora) ──────────────────
-    - script: npx electron-builder --linux --publish never
-      displayName: 'Package Linux (deb + rpm)'
+    # ── electron-builder: .deb + .rpm + publish ───────────────────────────
+    - script: npx electron-builder --linux --publish $(PUBLISH_FLAG)
+      displayName: 'Package Linux & publish (deb + rpm)'
+      env:
+        GH_TOKEN: $(GH-TOKEN)
 
     # ── Publish packages as pipeline artifact ─────────────────────────────
     - task: CopyFiles@2
