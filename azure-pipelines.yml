@@ -99,11 +99,9 @@ stages:
     - script: npx electron-builder --mac --publish never
       displayName: 'Package, sign & notarize (electron-builder)'
       env:
-        CSC_LINK:         $(APPLE-CSC-LINK)
-        CSC_KEY_PASSWORD: $(APPLE-CSC-KEY-PASSWORD)
-        APPLEID:          $(APPLE-ID)
-        APPLEIDPASS:      $(APPLE-ID-PASS)
-        TEAMID:           $(APPLE-TEAM-ID)
+        APPLEID:     $(APPLE-ID)
+        APPLEIDPASS: $(APPLE-ID-PASS)
+        TEAMID:      $(APPLE-TEAM-ID)
 
     # ── Publish dmg as pipeline artifact ─────────────────────────────────
     - task: CopyFiles@2
