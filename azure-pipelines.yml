@@ -2,8 +2,7 @@
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
 # Windows: AzureSignTool signs via Key Vault (private key never exported).
-# macOS:   electron-builder signs with Apple Developer cert + notarizes.
-# All secrets in deploy-vault-secrets variable group (MantoElectron Key Vault).
+# macOS:   self-hosted Mac Mini — cert in Keychain, .env at /Users/mantoadmin/env/.env.
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
@@ -79,14 +78,13 @@ stages:
   - job: BuildMacJob
     displayName: 'Electron macOS build'
     pool:
-      vmImage: 'macOS-latest'
+      name: MacMini
+      demands: npm
     steps:
 
-    # ── Node.js ───────────────────────────────────────────────────────────
-    - task: NodeTool@0
-      displayName: 'Install Node.js 20'
-      inputs:
-        versionSpec: '20.x'
+    # ── Copy .env (APPLEID / APPLEIDPASS / TEAMID) from Mac Mini ─────────
+    - bash: cp /Users/mantoadmin/env/.env .
+      displayName: 'Load Apple credentials from .env'
 
     - script: npm ci
       displayName: 'Install dependencies'
@@ -96,12 +94,10 @@ stages:
       displayName: 'Build renderer (Vite)'
 
     # ── electron-builder: package + sign + notarize ───────────────────────
+    # Certificate is installed in the Mac Mini Keychain — no CSC vars needed.
+    # notarize.js reads APPLEID/APPLEIDPASS/TEAMID via dotenv from .env file.
     - script: npx electron-builder --mac --publish never
       displayName: 'Package, sign & notarize (electron-builder)'
-      env:
-        APPLEID:     $(APPLE-ID)
-        APPLEIDPASS: $(APPLE-ID-PASS)
-        TEAMID:      $(APPLE-TEAM-ID)
 
     # ── Publish dmg as pipeline artifact ─────────────────────────────────
     - task: CopyFiles@2
