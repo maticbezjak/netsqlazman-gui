@@ -3,6 +3,7 @@
 #
 # Windows: AzureSignTool signs via Key Vault (private key never exported).
 # macOS:   self-hosted Mac Mini — cert in Keychain, .env at /Users/mantoadmin/env/.env.
+# Linux:   ubuntu-latest — produces .deb (Ubuntu) and .rpm (Fedora) packages.
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
@@ -114,4 +115,52 @@ stages:
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer-mac'
         ArtifactName: 'NetSqlAzMan-Mac'
+        publishLocation: 'Container'
+
+- stage: BuildLinux
+  displayName: 'Build Linux packages (.deb + .rpm)'
+  jobs:
+  - job: BuildLinuxJob
+    displayName: 'Electron Linux build'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    # ── Node.js ───────────────────────────────────────────────────────────
+    - task: NodeTool@0
+      displayName: 'Install Node.js 20'
+      inputs:
+        versionSpec: '20.x'
+
+    # ── rpm tools needed to build .rpm packages on Ubuntu ────────────────
+    - script: sudo apt-get install -y rpm
+      displayName: 'Install rpm build tools'
+
+    - script: npm ci
+      displayName: 'Install dependencies'
+
+    # ── Vite renderer build ───────────────────────────────────────────────
+    - script: npm run build:renderer
+      displayName: 'Build renderer (Vite)'
+
+    # ── electron-builder: .deb (Ubuntu) + .rpm (Fedora) ──────────────────
+    - script: npx electron-builder --linux --publish never
+      displayName: 'Package Linux (deb + rpm)'
+
+    # ── Publish packages as pipeline artifact ─────────────────────────────
+    - task: CopyFiles@2
+      displayName: 'Stage Linux packages'
+      inputs:
+        SourceFolder: 'release'
+        Contents: |
+          **/*.deb
+          **/*.rpm
+          **/latest-linux.yml
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/installer-linux'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifact: NetSqlAzMan-Linux'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer-linux'
+        ArtifactName: 'NetSqlAzMan-Linux'
         publishLocation: 'Container'
