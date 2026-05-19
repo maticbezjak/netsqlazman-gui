@@ -582,3 +582,51 @@ ipcMain.handle('db:deleteAuthorization', async (_, authorizationId) => {
     return { error: err.message }
   }
 })
+
+// ── User Lookup ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('db:searchUsers', async (_, query) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('q', sql.NVarChar, `%${query}%`)
+      .query(`SELECT TOP 20 usrname FROM dbo.Zaposleni WHERE usrname LIKE @q ORDER BY usrname`)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAzmanGroups', async () => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request().execute('GetAzmanGroups')
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAzmanGroupsForUser', async (_, username) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('username', sql.NVarChar, username)
+      .execute('GetAzmanGroupsForUser')
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAzmanOperationsForUser', async (_, username) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('username', sql.NVarChar, username)
+      .execute('GetAzmanOperationsForUser')
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})

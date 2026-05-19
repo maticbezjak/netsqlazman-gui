@@ -3,6 +3,7 @@ import ConnectionBar from './components/ConnectionBar'
 import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
 import Breadcrumb from './components/Breadcrumb'
+import UserLookup from './components/UserLookup'
 import { IconLock } from './components/Icon'
 import { ToastProvider } from './components/Toast'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -12,6 +13,7 @@ export default function App() {
   const [selection, setSelection] = useState(null)
   const [sidebarW, setSidebarW]   = useState(280)
   const [theme, setTheme]         = useState(() => localStorage.getItem('theme') || 'light')
+  const [view, setView]           = useState('store')  // 'store' | 'lookup'
   const sidebarRef = useRef()
   const dragging   = useRef(false)
 
@@ -26,7 +28,7 @@ export default function App() {
 
   function handleConnectionChange(isConnected) {
     setConnected(isConnected)
-    if (!isConnected) setSelection(null)
+    if (!isConnected) { setSelection(null); setView('store') }
   }
 
   function refreshGroups(appId) { sidebarRef.current?.refreshGroups(appId) }
@@ -51,8 +53,19 @@ export default function App() {
       <ConfirmProvider>
         <div className="app">
           <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} theme={theme} onToggleTheme={toggleTheme} />
+          {connected && (
+            <div className="tab-bar">
+              <button className={`tab-btn ${view === 'store'  ? 'active' : ''}`} onClick={() => setView('store')}>
+                Store Browser
+              </button>
+              <button className={`tab-btn ${view === 'lookup' ? 'active' : ''}`} onClick={() => setView('lookup')}>
+                User Lookup
+              </button>
+            </div>
+          )}
+
           <div className="workspace">
-            {connected && (
+            {connected && view === 'store' && (
               <>
                 <Sidebar
                   ref={sidebarRef}
@@ -73,6 +86,8 @@ export default function App() {
                   <h2>Not connected</h2>
                   <p>Enter your SQL Server connection details above to get started.</p>
                 </div>
+              ) : view === 'lookup' ? (
+                <UserLookup />
               ) : (
                 <>
                   <Breadcrumb selection={selection} />
