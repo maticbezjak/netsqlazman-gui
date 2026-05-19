@@ -8,7 +8,6 @@ publish:
   - provider: github
     owner: maticbezjak
     repo: netsqlazman-gui
-    draft: false
     releaseType: release
 
 files:
