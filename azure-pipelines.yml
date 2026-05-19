@@ -1,8 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
-# Signing: AzureSignTool calls Key Vault directly — private key never exported.
-# Service principal credentials stored in deploy-vault-secrets variable group.
+# Windows: AzureSignTool signs via Key Vault (private key never exported).
+# macOS:   electron-builder signs with Apple Developer cert + notarizes.
+# All secrets in deploy-vault-secrets variable group (MantoElectron Key Vault).
 # ─────────────────────────────────────────────────────────────────────────────
 
 trigger:
@@ -70,4 +71,53 @@ stages:
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer'
         ArtifactName: 'NetSqlAzMan-Installer'
+        publishLocation: 'Container'
+
+- stage: BuildMac
+  displayName: 'Build & sign macOS dmg'
+  jobs:
+  - job: BuildMacJob
+    displayName: 'Electron macOS build'
+    pool:
+      vmImage: 'macOS-latest'
+    steps:
+
+    # ── Node.js ───────────────────────────────────────────────────────────
+    - task: NodeTool@0
+      displayName: 'Install Node.js 20'
+      inputs:
+        versionSpec: '20.x'
+
+    - script: npm ci
+      displayName: 'Install dependencies'
+
+    # ── Vite renderer build ───────────────────────────────────────────────
+    - script: npm run build:renderer
+      displayName: 'Build renderer (Vite)'
+
+    # ── electron-builder: package + sign + notarize ───────────────────────
+    - script: npx electron-builder --mac --publish never
+      displayName: 'Package, sign & notarize (electron-builder)'
+      env:
+        CSC_LINK:         $(APPLE-CSC-LINK)
+        CSC_KEY_PASSWORD: $(APPLE-CSC-KEY-PASSWORD)
+        APPLEID:          $(APPLE-ID)
+        APPLEIDPASS:      $(APPLE-ID-PASS)
+        TEAMID:           $(APPLE-TEAM-ID)
+
+    # ── Publish dmg as pipeline artifact ─────────────────────────────────
+    - task: CopyFiles@2
+      displayName: 'Stage macOS installer files'
+      inputs:
+        SourceFolder: 'release'
+        Contents: |
+          **/*.dmg
+          **/latest-mac.yml
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/installer-mac'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifact: NetSqlAzMan-Mac'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer-mac'
+        ArtifactName: 'NetSqlAzMan-Mac'
         publishLocation: 'Container'
