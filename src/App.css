@@ -88,19 +88,24 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 
 /* ── Connection bar ──────────────────────────────────────────────────────── */
 .connection-bar {
-  display: flex; align-items: center; gap: 16px; padding: 0 16px; height: 52px;
+  display: flex; align-items: center; gap: 10px; padding: 0 12px; height: 52px;
   background: var(--bg-surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
   box-shadow: var(--shadow-sm);
 }
-.app-title { font-weight: 700; font-size: 15px; color: var(--title-color); white-space: nowrap; min-width: 170px; }
+.app-title { font-weight: 700; font-size: 15px; color: var(--title-color); white-space: nowrap; flex-shrink: 0; }
 
-.conn-form { display: flex; align-items: center; gap: 8px; flex: 1; }
+.conn-form { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .conn-form input {
   background: var(--bg-raised); border: 1px solid var(--border); color: var(--text-body);
-  padding: 5px 10px; border-radius: 5px; font-size: 13px; flex: 1; min-width: 70px; outline: none;
+  padding: 5px 8px; border-radius: 5px; font-size: 13px; min-width: 0; outline: none;
 }
-.conn-form input:focus     { border-color: var(--accent); }
+.conn-form input:focus        { border-color: var(--accent); }
 .conn-form input::placeholder { color: var(--text-placeholder); }
+.conn-server   { flex: 2.5; }
+.conn-port     { flex: 0 0 52px; }
+.conn-user     { flex: 1.2; }
+.conn-password { flex: 1.2; }
+.conn-db       { flex: 1.5; }
 .conn-error { color: var(--color-error); font-size: 12px; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
 
 .conn-status { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }

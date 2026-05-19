@@ -165,11 +165,11 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
           </div>
 
           {/* ── Connection fields ─────────────────── */}
-          <input placeholder="Server"   value={config.server}   onChange={set('server')} />
-          <input placeholder="Port"     value={config.port}     onChange={set('port')}     style={{ width: 60 }} />
-          <input placeholder="User"     value={config.user}     onChange={set('user')} />
-          <input type="password" placeholder="Password" value={config.password} onChange={set('password')} />
-          <input placeholder="Database" value={config.database} onChange={set('database')} />
+          <input className="conn-server"   placeholder="Server"   value={config.server}   onChange={set('server')} />
+          <input className="conn-port"     placeholder="Port"     value={config.port}     onChange={set('port')} />
+          <input className="conn-user"     placeholder="User"     value={config.user}     onChange={set('user')} />
+          <input className="conn-password" type="password" placeholder="Password" value={config.password} onChange={set('password')} />
+          <input className="conn-db"       placeholder="Database" value={config.database} onChange={set('database')} />
 
           <button
             className="btn btn-primary"
