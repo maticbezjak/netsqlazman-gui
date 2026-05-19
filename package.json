@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Desktop GUI for managing NetSqlAzMan authorization stores",
   "main": "electron/main.js",
-  "author": "",
+  "author": {
+    "name": "Matic Bezjak",
+    "email": "matic.bezjak@manto.si"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
