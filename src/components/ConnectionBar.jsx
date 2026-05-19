@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { IconCheck, IconFolderOpen, IconChevDown } from './Icon'
+import { IconCheck, IconFolderOpen, IconChevDown, IconSun, IconMoon } from './Icon'
 
 const EMPTY = { server: '', port: '1433', user: '', password: '', database: '' }
 
-export default function ConnectionBar({ connected, onConnectionChange }) {
+export default function ConnectionBar({ connected, onConnectionChange, theme, onToggleTheme }) {
   const [config, setConfig]               = useState(EMPTY)
   const [error, setError]                 = useState('')
   const [loading, setLoading]             = useState(false)
@@ -217,6 +217,10 @@ export default function ConnectionBar({ connected, onConnectionChange }) {
           <button className="btn btn-ghost btn-sm" onClick={handleDisconnect}>Disconnect</button>
         </div>
       )}
+
+      <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+        {theme === 'light' ? <IconMoon /> : <IconSun />}
+      </button>
     </header>
   )
 }

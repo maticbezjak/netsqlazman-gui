@@ -2,6 +2,7 @@ import {
   User, Users, ClipboardList, Zap, Database, Package,
   Folder, ShieldCheck, RefreshCw, Check, ChevronRight,
   ChevronDown, AlertTriangle, FolderKey, Lock, FolderOpen,
+  Sun, Moon,
 } from 'lucide-react'
 
 const SM = { size: 14, strokeWidth: 1.8 }
@@ -28,3 +29,5 @@ export const IconTaskMd    = (p) => <ClipboardList {...MD} {...p} />
 export const IconOpMd      = (p) => <Zap           {...MD} {...p} />
 export const IconLock       = (p) => <Lock         {...MD} {...p} />
 export const IconFolderOpen = (p) => <FolderOpen   {...MD} {...p} />
+export const IconSun        = (p) => <Sun          {...MD} {...p} />
+export const IconMoon       = (p) => <Moon         {...MD} {...p} />

@@ -11,8 +11,18 @@ export default function App() {
   const [connected, setConnected] = useState(false)
   const [selection, setSelection] = useState(null)
   const [sidebarW, setSidebarW]   = useState(280)
+  const [theme, setTheme]         = useState(() => localStorage.getItem('theme') || 'light')
   const sidebarRef = useRef()
   const dragging   = useRef(false)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme((t) => t === 'light' ? 'dark' : 'light')
+  }
 
   function handleConnectionChange(isConnected) {
     setConnected(isConnected)
@@ -40,7 +50,7 @@ export default function App() {
     <ToastProvider>
       <ConfirmProvider>
         <div className="app">
-          <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} />
+          <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} theme={theme} onToggleTheme={toggleTheme} />
           <div className="workspace">
             {connected && (
               <>
