@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+// Sentinel so main.jsx knows it's running inside Electron
+contextBridge.exposeInMainWorld('__electronPreload', true)
+
 contextBridge.exposeInMainWorld('connections', {
   load:   ()     => ipcRenderer.invoke('connections:load'),
   save:   (conn) => ipcRenderer.invoke('connections:save', conn),

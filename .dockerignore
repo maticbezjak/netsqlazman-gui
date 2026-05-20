@@ -1,0 +1,10 @@
+node_modules
+release
+dist
+.git
+.claude
+*.md
+electron
+electron-builder.yml
+azure-pipelines.yml
+scripts

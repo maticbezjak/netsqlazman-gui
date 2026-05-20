@@ -12,11 +12,15 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build:renderer": "vite build",
     "build": "npm run build:renderer && electron-builder",
-    "start": "electron ."
+    "start": "electron .",
+    "serve": "node server/index.js",
+    "docker:build": "docker build -t netsqlazman-gui .",
+    "docker:up": "docker compose up -d"
   },
   "dependencies": {
     "d3": "^7.9.0",
     "electron-updater": "^6.8.3",
+    "express": "^5.2.1",
     "lucide-react": "^1.16.0",
     "mssql": "^12.5.2"
   },
