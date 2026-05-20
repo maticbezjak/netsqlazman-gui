@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import UserGraph from './UserGraph'
 
 const EMPTY_RESULT = { groups: null, operations: null, user: null, error: null }
 
@@ -8,6 +9,7 @@ export default function UserLookup() {
   const [showDrop, setShowDrop]     = useState(false)
   const [loading, setLoading]       = useState(false)
   const [result, setResult]         = useState(EMPTY_RESULT)
+  const [showGraph, setShowGraph]   = useState(false)
   const debounceRef = useRef(null)
   const wrapRef     = useRef(null)
 
@@ -59,6 +61,7 @@ export default function UserLookup() {
       operations: opRes.data,
       error: null,
     })
+    setShowGraph(false)
   }
 
   function handleKeyDown(e) {
@@ -112,57 +115,68 @@ export default function UserLookup() {
       {result.user && !result.error && (
         <div className="lookup-results">
 
-          {/* Groups */}
-          <div className="lookup-section">
-            <div className="lookup-section-header">
-              <span className="lookup-section-title">Application Groups</span>
-              <span className="lookup-badge">{result.groups.length}</span>
-            </div>
-            {result.groups.length === 0 ? (
-              <div className="lookup-empty">No groups found for <strong>{result.user}</strong></div>
-            ) : (
-              <div className="lookup-table-wrap">
-                <table className="lookup-table">
-                  <thead>
-                    <tr>{cols(result.groups).map((c) => <th key={c}>{c}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {result.groups.map((row, i) => (
-                      <tr key={i}>
-                        {cols(result.groups).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <div className="lookup-view-toggle">
+            <button className={`btn btn-sm ${!showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(false)}>Table</button>
+            <button className={`btn btn-sm ${ showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(true)}>Visualize</button>
           </div>
 
-          {/* Operations */}
-          <div className="lookup-section">
-            <div className="lookup-section-header">
-              <span className="lookup-section-title">Allowed Operations</span>
-              <span className="lookup-badge">{result.operations.length}</span>
-            </div>
-            {result.operations.length === 0 ? (
-              <div className="lookup-empty">No operations found for <strong>{result.user}</strong></div>
-            ) : (
-              <div className="lookup-table-wrap">
-                <table className="lookup-table">
-                  <thead>
-                    <tr>{cols(result.operations).map((c) => <th key={c}>{c}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {result.operations.map((row, i) => (
-                      <tr key={i}>
-                        {cols(result.operations).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {showGraph && (
+            <UserGraph user={result.user} groups={result.groups} operations={result.operations} />
+          )}
+
+          {!showGraph && (<>
+            {/* Groups */}
+            <div className="lookup-section">
+              <div className="lookup-section-header">
+                <span className="lookup-section-title">Application Groups</span>
+                <span className="lookup-badge">{result.groups.length}</span>
               </div>
-            )}
-          </div>
+              {result.groups.length === 0 ? (
+                <div className="lookup-empty">No groups found for <strong>{result.user}</strong></div>
+              ) : (
+                <div className="lookup-table-wrap">
+                  <table className="lookup-table">
+                    <thead>
+                      <tr>{cols(result.groups).map((c) => <th key={c}>{c}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {result.groups.map((row, i) => (
+                        <tr key={i}>
+                          {cols(result.groups).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Operations */}
+            <div className="lookup-section">
+              <div className="lookup-section-header">
+                <span className="lookup-section-title">Allowed Operations</span>
+                <span className="lookup-badge">{result.operations.length}</span>
+              </div>
+              {result.operations.length === 0 ? (
+                <div className="lookup-empty">No operations found for <strong>{result.user}</strong></div>
+              ) : (
+                <div className="lookup-table-wrap">
+                  <table className="lookup-table">
+                    <thead>
+                      <tr>{cols(result.operations).map((c) => <th key={c}>{c}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {result.operations.map((row, i) => (
+                        <tr key={i}>
+                          {cols(result.operations).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>)}
 
         </div>
       )}

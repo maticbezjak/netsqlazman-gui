@@ -15,6 +15,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "d3": "^7.9.0",
     "electron-updater": "^6.8.3",
     "lucide-react": "^1.16.0",
     "mssql": "^12.5.2"

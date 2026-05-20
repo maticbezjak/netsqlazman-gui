@@ -629,3 +629,36 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: var(--text-muted); font-size: 14px;
 }
+
+.lookup-view-toggle {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+
+/* ── D3 Graph ─────────────────────────────────────────────────────────────── */
+.user-graph-wrap {
+  display: flex; flex-direction: column;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-sm);
+  flex: 1; min-height: 480px;
+}
+
+.user-graph-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-raised); flex-shrink: 0;
+}
+
+.graph-legend { display: flex; gap: 16px; align-items: center; }
+.legend-item  { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.legend-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.graph-toggle-ops {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary); cursor: pointer;
+}
+.graph-toggle-ops input { cursor: pointer; accent-color: var(--accent); }
+
+.user-graph-svg {
+  flex: 1; width: 100%;
+}
