@@ -254,7 +254,7 @@ stages:
       displayName: 'Set image tag'
 
     # ── Docker login ──────────────────────────────────────────────────────
-    - bash: echo "$(DOCKERHUB-TOKEN)" | docker login -u "maticbezjak" --password-stdin
+    - bash: echo "$(DOCKERHUB-TOKEN)" | docker login -u "brezjakmanto" --password-stdin
       displayName: 'Login to Docker Hub'
       condition: eq(variables['SHOULD_PUSH'], 'true')
       env:
@@ -262,7 +262,7 @@ stages:
 
     # ── Build & push ──────────────────────────────────────────────────────
     - bash: |
-        IMAGE="maticbezjak/netsqlazman-gui"
+        IMAGE="brezjakmanto/netsqlazman-gui"
         VERSION="$(IMAGE_TAG)"
         docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
         docker push "$IMAGE:$VERSION"
