@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import UserGraph from './UserGraph'
 
-const EMPTY_RESULT = { groups: null, operations: null, user: null, displayName: null, error: null }
+const EMPTY_RESULT = { groups: null, roles: null, operations: null, user: null, displayName: null, error: null }
 
 export default function UserLookup() {
   const [query, setQuery]           = useState('')
@@ -32,6 +32,7 @@ export default function UserLookup() {
       if (res.data) {
         setSuggestions(res.data)
         setShowDrop(res.data.length > 0)
+
       }
     }, 280)
   }, [])
@@ -43,15 +44,16 @@ export default function UserLookup() {
     setLoading(true)
     setResult(EMPTY_RESULT)
 
-    const [grpRes, opRes] = await Promise.all([
+    const [grpRes, roleRes, opRes] = await Promise.all([
       window.db.getAzmanGroupsForUser(usrname),
+      window.db.getAzmanRolesForUser(usrname),
       window.db.getAzmanOperationsForUser(usrname),
     ])
 
     setLoading(false)
 
-    if (grpRes.error || opRes.error) {
-      setResult({ ...EMPTY_RESULT, error: grpRes.error || opRes.error })
+    if (grpRes.error || roleRes.error || opRes.error) {
+      setResult({ ...EMPTY_RESULT, error: grpRes.error || roleRes.error || opRes.error })
       return
     }
 
@@ -59,6 +61,7 @@ export default function UserLookup() {
       user: usrname,
       displayName: displayName || usrname,
       groups: grpRes.data,
+      roles: roleRes.data,
       operations: opRes.data,
       error: null,
     })
@@ -70,7 +73,7 @@ export default function UserLookup() {
       // If there's exactly one suggestion, use it; otherwise search by raw query
       if (suggestions.length === 1) {
         const s = suggestions[0]
-        lookup(s.usrname, `${s.Ime} ${s.Priimek}`)
+        lookup(s.UserName, `${s.Ime} ${s.Priimek}`)
       } else {
         lookup(query.trim(), query.trim())
       }
@@ -100,12 +103,12 @@ export default function UserLookup() {
               <div className="lookup-dropdown">
                 {suggestions.map((s) => (
                   <div
-                    key={s.usrname}
+                    key={s.UserName}
                     className="lookup-suggestion"
-                    onClick={() => lookup(s.usrname, `${s.Ime} ${s.Priimek}`)}
+                    onClick={() => lookup(s.UserName, `${s.Ime} ${s.Priimek}`)}
                   >
                     <span className="suggestion-name">{s.Ime} {s.Priimek}</span>
-                    <span className="suggestion-user">{s.usrname}</span>
+                    <span className="suggestion-user">{s.UserName}</span>
                   </div>
                 ))}
               </div>
@@ -116,7 +119,7 @@ export default function UserLookup() {
             onClick={() => {
               if (suggestions.length === 1) {
                 const s = suggestions[0]
-                lookup(s.usrname, `${s.Ime} ${s.Priimek}`)
+                lookup(s.UserName, `${s.Ime} ${s.Priimek}`)
               } else if (query.trim()) {
                 lookup(query.trim(), query.trim())
               }
@@ -142,7 +145,7 @@ export default function UserLookup() {
           </div>
 
           {showGraph && (
-            <UserGraph user={result.user} groups={result.groups} operations={result.operations} />
+            <UserGraph user={result.user} groups={result.groups} roles={result.roles} operations={result.operations} />
           )}
 
           {!showGraph && (<>
@@ -164,6 +167,32 @@ export default function UserLookup() {
                       {result.groups.map((row, i) => (
                         <tr key={i}>
                           {cols(result.groups).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Roles */}
+            <div className="lookup-section">
+              <div className="lookup-section-header">
+                <span className="lookup-section-title">Roles</span>
+                <span className="lookup-badge">{result.roles.length}</span>
+              </div>
+              {result.roles.length === 0 ? (
+                <div className="lookup-empty">No roles found for <strong>{result.displayName}</strong></div>
+              ) : (
+                <div className="lookup-table-wrap">
+                  <table className="lookup-table">
+                    <thead>
+                      <tr>{cols(result.roles).map((c) => <th key={c}>{c}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {result.roles.map((row, i) => (
+                        <tr key={i}>
+                          {cols(result.roles).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
                         </tr>
                       ))}
                     </tbody>

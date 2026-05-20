@@ -591,11 +591,11 @@ ipcMain.handle('db:searchUsers', async (_, query) => {
     const r = await currentPool.request()
       .input('q', sql.NVarChar, `%${query}%`)
       .query(`
-        SELECT TOP 20 usrname, Ime, Priimek
+        SELECT TOP 20 UserName, Ime, Priimek
         FROM dbo.Zaposleni
         WHERE Ime + ' ' + Priimek LIKE @q
            OR Priimek + ' ' + Ime LIKE @q
-           OR usrname LIKE @q
+           OR UserName LIKE @q
         ORDER BY Priimek, Ime
       `)
     return { data: r.recordset }
@@ -632,6 +632,18 @@ ipcMain.handle('db:getAzmanOperationsForUser', async (_, username) => {
     const r = await currentPool.request()
       .input('username', sql.NVarChar, username)
       .execute('GetAzmanOperationsForUser')
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAzmanRolesForUser', async (_, username) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('username', sql.NVarChar, username)
+      .execute('GetAzmanRolesForUser')
     return { data: r.recordset }
   } catch (err) {
     return { error: err.message }

@@ -45,4 +45,5 @@ contextBridge.exposeInMainWorld('db', {
   getAzmanGroups:           ()         => ipcRenderer.invoke('db:getAzmanGroups'),
   getAzmanGroupsForUser:    (username) => ipcRenderer.invoke('db:getAzmanGroupsForUser', username),
   getAzmanOperationsForUser:(username) => ipcRenderer.invoke('db:getAzmanOperationsForUser', username),
+  getAzmanRolesForUser:     (username) => ipcRenderer.invoke('db:getAzmanRolesForUser', username),
 })

@@ -18,11 +18,14 @@ const TYPE_COLOR = {
   user:  '#6366f1',
   app:   '#f59e0b',
   group: '#10b981',
+  role:  '#ec4899',
   op:    '#3b82f6',
 }
-const TYPE_R = { user: 22, app: 15, group: 10, op: 7 }
+const TYPE_R = { user: 22, app: 15, group: 10, role: 10, op: 7 }
 
-export default function UserGraph({ user, groups, operations }) {
+const ROLE_COL = ['RoleName', 'Role', 'Name']
+
+export default function UserGraph({ user, groups, roles, operations }) {
   const svgRef      = useRef(null)
   const simRef      = useRef(null)
   const [showOps, setShowOps] = useState(true)
@@ -65,6 +68,16 @@ export default function UserGraph({ user, groups, operations }) {
       nodes.push({ id, label: grp, type: 'group', r: TYPE_R.group })
       links.push({ source: appId, target: id })
     })
+
+    // Role nodes — connected directly to user
+    if (roles) {
+      roles.forEach((row, i) => {
+        const roleName = findCol(row, ROLE_COL)
+        const id = `role:${roleName}:${i}`
+        nodes.push({ id, label: roleName, type: 'role', r: TYPE_R.role })
+        links.push({ source: userId, target: id })
+      })
+    }
 
     if (showOps) {
       operations.forEach((row, i) => {
@@ -169,13 +182,13 @@ export default function UserGraph({ user, groups, operations }) {
     })
 
     return () => sim.stop()
-  }, [user, groups, operations, showOps])
+  }, [user, groups, roles, operations, showOps])
 
   return (
     <div className="user-graph-wrap">
       <div className="user-graph-toolbar">
         <div className="graph-legend">
-          {[['user','User'],['app','Application'],['group','Group'],['op','Operation']].map(([t,l]) => (
+          {[['user','User'],['app','Application'],['group','Group'],['role','Role'],['op','Operation']].map(([t,l]) => (
             <span key={t} className="legend-item">
               <span className="legend-dot" style={{ background: TYPE_COLOR[t] }} />
               {l}
