@@ -590,7 +590,14 @@ ipcMain.handle('db:searchUsers', async (_, query) => {
   try {
     const r = await currentPool.request()
       .input('q', sql.NVarChar, `%${query}%`)
-      .query(`SELECT TOP 20 usrname FROM dbo.Zaposleni WHERE usrname LIKE @q ORDER BY usrname`)
+      .query(`
+        SELECT TOP 20 usrname, Ime, Priimek
+        FROM dbo.Zaposleni
+        WHERE Ime + ' ' + Priimek LIKE @q
+           OR Priimek + ' ' + Ime LIKE @q
+           OR usrname LIKE @q
+        ORDER BY Priimek, Ime
+      `)
     return { data: r.recordset }
   } catch (err) {
     return { error: err.message }

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import UserGraph from './UserGraph'
 
-const EMPTY_RESULT = { groups: null, operations: null, user: null, error: null }
+const EMPTY_RESULT = { groups: null, operations: null, user: null, displayName: null, error: null }
 
 export default function UserLookup() {
   const [query, setQuery]           = useState('')
-  const [suggestions, setSuggestions] = useState([])
+  const [suggestions, setSuggestions] = useState([])   // [{ usrname, Ime, Priimek }]
   const [showDrop, setShowDrop]     = useState(false)
   const [loading, setLoading]       = useState(false)
   const [result, setResult]         = useState(EMPTY_RESULT)
@@ -30,22 +30,22 @@ export default function UserLookup() {
     debounceRef.current = setTimeout(async () => {
       const res = await window.db.searchUsers(val.trim())
       if (res.data) {
-        setSuggestions(res.data.map((r) => r.usrname))
-        setShowDrop(true)
+        setSuggestions(res.data)
+        setShowDrop(res.data.length > 0)
       }
     }, 280)
   }, [])
 
-  async function lookup(username) {
+  async function lookup(usrname, displayName) {
     setShowDrop(false)
-    setQuery(username)
+    setQuery(displayName || usrname)
     setSuggestions([])
     setLoading(true)
     setResult(EMPTY_RESULT)
 
     const [grpRes, opRes] = await Promise.all([
-      window.db.getAzmanGroupsForUser(username),
-      window.db.getAzmanOperationsForUser(username),
+      window.db.getAzmanGroupsForUser(usrname),
+      window.db.getAzmanOperationsForUser(usrname),
     ])
 
     setLoading(false)
@@ -56,7 +56,8 @@ export default function UserLookup() {
     }
 
     setResult({
-      user: username,
+      user: usrname,
+      displayName: displayName || usrname,
       groups: grpRes.data,
       operations: opRes.data,
       error: null,
@@ -65,7 +66,15 @@ export default function UserLookup() {
   }
 
   function handleKeyDown(e) {
-    if (e.key === 'Enter' && query.trim()) lookup(query.trim())
+    if (e.key === 'Enter' && query.trim()) {
+      // If there's exactly one suggestion, use it; otherwise search by raw query
+      if (suggestions.length === 1) {
+        const s = suggestions[0]
+        lookup(s.usrname, `${s.Ime} ${s.Priimek}`)
+      } else {
+        lookup(query.trim(), query.trim())
+      }
+    }
     if (e.key === 'Escape') setShowDrop(false)
   }
 
@@ -80,7 +89,7 @@ export default function UserLookup() {
           <div className="lookup-input-wrap">
             <input
               className="lookup-input"
-              placeholder="Type a username…"
+              placeholder="Type a name or surname…"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               onFocus={() => suggestions.length && setShowDrop(true)}
@@ -89,9 +98,14 @@ export default function UserLookup() {
             />
             {showDrop && suggestions.length > 0 && (
               <div className="lookup-dropdown">
-                {suggestions.map((u) => (
-                  <div key={u} className="lookup-suggestion" onClick={() => lookup(u)}>
-                    {u}
+                {suggestions.map((s) => (
+                  <div
+                    key={s.usrname}
+                    className="lookup-suggestion"
+                    onClick={() => lookup(s.usrname, `${s.Ime} ${s.Priimek}`)}
+                  >
+                    <span className="suggestion-name">{s.Ime} {s.Priimek}</span>
+                    <span className="suggestion-user">{s.usrname}</span>
                   </div>
                 ))}
               </div>
@@ -99,7 +113,14 @@ export default function UserLookup() {
           </div>
           <button
             className="btn btn-primary"
-            onClick={() => query.trim() && lookup(query.trim())}
+            onClick={() => {
+              if (suggestions.length === 1) {
+                const s = suggestions[0]
+                lookup(s.usrname, `${s.Ime} ${s.Priimek}`)
+              } else if (query.trim()) {
+                lookup(query.trim(), query.trim())
+              }
+            }}
             disabled={loading || !query.trim()}
           >
             {loading ? 'Searching…' : 'Search'}
@@ -132,7 +153,7 @@ export default function UserLookup() {
                 <span className="lookup-badge">{result.groups.length}</span>
               </div>
               {result.groups.length === 0 ? (
-                <div className="lookup-empty">No groups found for <strong>{result.user}</strong></div>
+                <div className="lookup-empty">No groups found for <strong>{result.displayName}</strong></div>
               ) : (
                 <div className="lookup-table-wrap">
                   <table className="lookup-table">
@@ -158,7 +179,7 @@ export default function UserLookup() {
                 <span className="lookup-badge">{result.operations.length}</span>
               </div>
               {result.operations.length === 0 ? (
-                <div className="lookup-empty">No operations found for <strong>{result.user}</strong></div>
+                <div className="lookup-empty">No operations found for <strong>{result.displayName}</strong></div>
               ) : (
                 <div className="lookup-table-wrap">
                   <table className="lookup-table">

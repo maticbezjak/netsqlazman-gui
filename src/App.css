@@ -572,10 +572,13 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
   border-radius: 8px; box-shadow: var(--shadow-dropdown); overflow: hidden;
 }
 .lookup-suggestion {
-  padding: 8px 12px; font-size: 13px; color: var(--text-body); cursor: pointer;
-  transition: background 0.1s;
+  padding: 8px 12px; cursor: pointer; transition: background 0.1s;
+  display: flex; align-items: baseline; gap: 8px;
 }
-.lookup-suggestion:hover { background: var(--bg-hover); color: var(--accent-light); }
+.lookup-suggestion:hover { background: var(--bg-hover); }
+.lookup-suggestion:hover .suggestion-name { color: var(--accent-light); }
+.suggestion-name { font-size: 13px; color: var(--text-body); font-weight: 500; }
+.suggestion-user { font-size: 11px; color: var(--text-muted); }
 
 .lookup-results {
   display: flex; flex-direction: column; gap: 20px; flex: 1;
