@@ -223,3 +223,50 @@ stages:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)/installer-linux'
         ArtifactName: 'NetSqlAzMan-Linux'
         publishLocation: 'Container'
+
+- stage: BuildDocker
+  displayName: 'Build & push Docker image'
+  jobs:
+  - job: DockerJob
+    displayName: 'Docker build & push to Docker Hub'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    # ── Node.js (needed for Vite build inside Docker) ─────────────────────
+    - task: NodeTool@0
+      displayName: 'Install Node.js 20'
+      inputs:
+        versionSpec: '20.x'
+
+    # ── Version + push flag ───────────────────────────────────────────────
+    - bash: |
+        BRANCH="$(Build.SourceBranch)"
+        if [[ "$BRANCH" == refs/tags/v* ]]; then
+          VERSION="${BRANCH#refs/tags/v}"
+          echo "##vso[task.setvariable variable=IMAGE_TAG]$VERSION"
+          echo "##vso[task.setvariable variable=SHOULD_PUSH]true"
+        else
+          BASE=$(node -e "process.stdout.write(require('./package.json').version)")
+          echo "##vso[task.setvariable variable=IMAGE_TAG]$BASE.$(Build.BuildId)"
+          echo "##vso[task.setvariable variable=SHOULD_PUSH]false"
+        fi
+      displayName: 'Set image tag'
+
+    # ── Docker login ──────────────────────────────────────────────────────
+    - bash: echo "$(DOCKERHUB-TOKEN)" | docker login -u "maticbezjak" --password-stdin
+      displayName: 'Login to Docker Hub'
+      condition: eq(variables['SHOULD_PUSH'], 'true')
+      env:
+        DOCKERHUB-TOKEN: $(DOCKERHUB-TOKEN)
+
+    # ── Build & push ──────────────────────────────────────────────────────
+    - bash: |
+        IMAGE="maticbezjak/netsqlazman-gui"
+        VERSION="$(IMAGE_TAG)"
+        docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+        docker push "$IMAGE:$VERSION"
+        docker push "$IMAGE:latest"
+        echo "Pushed $IMAGE:$VERSION and $IMAGE:latest"
+      displayName: 'Build & push Docker image'
+      condition: eq(variables['SHOULD_PUSH'], 'true')
