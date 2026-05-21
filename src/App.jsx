@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
 import Breadcrumb from './components/Breadcrumb'
 import UserLookup from './components/UserLookup'
+import HelpModal from './components/HelpModal'
 import { IconLock } from './components/Icon'
 import { ToastProvider } from './components/Toast'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -14,6 +15,7 @@ export default function App() {
   const [sidebarW, setSidebarW]   = useState(280)
   const [theme, setTheme]         = useState(() => localStorage.getItem('theme') || 'light')
   const [view, setView]           = useState('store')  // 'store' | 'lookup'
+  const [showHelp, setShowHelp]   = useState(false)
   const sidebarRef = useRef()
   const dragging   = useRef(false)
 
@@ -52,7 +54,8 @@ export default function App() {
     <ToastProvider>
       <ConfirmProvider>
         <div className="app">
-          <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} theme={theme} onToggleTheme={toggleTheme} />
+          <ConnectionBar connected={connected} onConnectionChange={handleConnectionChange} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setShowHelp(true)} />
+          {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
           {connected && (
             <div className="tab-bar">
               <button className={`tab-btn ${view === 'store'  ? 'active' : ''}`} onClick={() => setView('store')}>

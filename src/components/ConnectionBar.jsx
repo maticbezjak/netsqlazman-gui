@@ -3,7 +3,7 @@ import { IconCheck, IconFolderOpen, IconChevDown, IconSun, IconMoon } from './Ic
 
 const EMPTY = { server: '', port: '1433', user: '', password: '', database: '' }
 
-export default function ConnectionBar({ connected, onConnectionChange, theme, onToggleTheme }) {
+export default function ConnectionBar({ connected, onConnectionChange, theme, onToggleTheme, onHelp }) {
   const [config, setConfig]               = useState(EMPTY)
   const [error, setError]                 = useState('')
   const [loading, setLoading]             = useState(false)
@@ -293,6 +293,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
         </div>
       )}
 
+      <button className="help-btn" onClick={onHelp} title="Help / User Manual">?</button>
       <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
         {theme === 'light' ? <IconMoon /> : <IconSun />}
       </button>
