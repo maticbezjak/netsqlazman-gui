@@ -17,10 +17,11 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
   const dropdownRef = useRef(null)
 
   // ── Database picker ────────────────────────────────────────────────────────
-  const [dbList, setDbList]       = useState([])
-  const [dbLoading, setDbLoading] = useState(false)
-  const [dbError, setDbError]     = useState('')
+  const [dbList, setDbList]         = useState([])
+  const [dbLoading, setDbLoading]   = useState(false)
+  const [dbError, setDbError]       = useState('')
   const [showDbDrop, setShowDbDrop] = useState(false)
+  const [dbDropRect, setDbDropRect] = useState(null)
   const dbWrapRef = useRef(null)
 
   useEffect(() => {
@@ -74,13 +75,19 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     setDbLoading(true)
     setDbError('')
     setShowDbDrop(false)
-    const r = await window.db.listDatabases({ server: config.server, port: config.port, user: config.user, password: config.password })
-    setDbLoading(false)
-    if (r.data) {
-      setDbList(r.data)
-      setShowDbDrop(true)
-    } else {
-      setDbError(r.error || 'Could not connect')
+    try {
+      const r = await window.db.listDatabases({ server: config.server, port: config.port, user: config.user, password: config.password })
+      if (r.data) {
+        setDbList(r.data)
+        if (dbWrapRef.current) setDbDropRect(dbWrapRef.current.getBoundingClientRect())
+        setShowDbDrop(true)
+      } else {
+        setDbError(r.error || 'Could not connect')
+      }
+    } catch (err) {
+      setDbError(err.message || 'Unknown error')
+    } finally {
+      setDbLoading(false)
     }
   }
 
@@ -213,23 +220,30 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
               type="button"
               onClick={fetchDatabases}
               disabled={dbLoading || !canFetchDbs}
-              title={canFetchDbs ? (dbError || 'Browse available databases') : 'Enter server, user and password first'}
+              title={canFetchDbs ? 'Browse available databases' : 'Enter server, user and password first'}
             >
               {dbLoading ? '…' : <IconChevDown />}
             </button>
-            {showDbDrop && filteredDbs.length > 0 && (
-              <div className="db-dropdown">
-                {filteredDbs.map((name) => (
-                  <div
-                    key={name}
-                    className={`db-dropdown-item${config.database === name ? ' active' : ''}`}
-                    onMouseDown={(e) => { e.preventDefault(); setConfig((c) => ({ ...c, database: name })); setShowDbDrop(false) }}
-                  >
-                    {name}
-                  </div>
-                ))}
+            {showDbDrop && dbDropRect && (
+              <div
+                className="db-dropdown"
+                style={{ top: dbDropRect.bottom + 3, left: dbDropRect.left, width: dbDropRect.width }}
+              >
+                {filteredDbs.length > 0
+                  ? filteredDbs.map((name) => (
+                      <div
+                        key={name}
+                        className={`db-dropdown-item${config.database === name ? ' active' : ''}`}
+                        onMouseDown={(e) => { e.preventDefault(); setConfig((c) => ({ ...c, database: name })); setShowDbDrop(false) }}
+                      >
+                        {name}
+                      </div>
+                    ))
+                  : <div className="db-dropdown-empty">No matching databases</div>
+                }
               </div>
             )}
+            {dbError && <div className="db-error">{dbError}</div>}
           </div>
 
           <button
