@@ -298,7 +298,7 @@ app.post('/api/db/authorizations', wrap(async (req) => {
     .input('sid',      sql.VarBinary, sidBuf)
     .input('ownerSid', sql.VarBinary, ownerBuf)
     .query(`INSERT INTO netsqlazman_AuthorizationsTable (ItemId, ownerSid, ownerSidWhereDefined, objectSid, objectSidWhereDefined, AuthorizationType, ValidFrom, ValidTo)
-            VALUES (@itemId, @ownerSid, 1, @sid, @sidWhere, @authType, NULL, NULL)`)
+            VALUES (@itemId, @ownerSid, 2, @sid, @sidWhere, @authType, NULL, NULL)`)
   return { success: true }
 }))
 

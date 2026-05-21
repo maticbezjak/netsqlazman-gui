@@ -105,11 +105,11 @@ export default function ItemAuthPanel({ item, onDeleted }) {
         authType:    newType,
         sidWhereDefined,
       })
-      if (!r.success) errors.push(sidHex + ': ' + r.error)
+      if (!r.success) errors.push(r.error || 'Unknown error')
     }
     setAdding(false)
     if (errors.length) {
-      toast.error(`${errors.length} authorization(s) could not be added`)
+      toast.error(`${errors.length} authorization(s) could not be added: ${errors.join('; ')}`)
     } else {
       toast.success(`${selected.size} authorization(s) added`)
     }

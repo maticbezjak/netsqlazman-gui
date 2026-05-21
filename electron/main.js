@@ -550,7 +550,7 @@ ipcMain.handle('db:addAuthorization', async (_, { itemId, sidHex, ownerSidHex, a
       .query(`
         INSERT INTO netsqlazman_AuthorizationsTable
           (ItemId, ownerSid, ownerSidWhereDefined, objectSid, objectSidWhereDefined, AuthorizationType, ValidFrom, ValidTo)
-        VALUES (@itemId, @ownerSid, 1, @sid, @sidWhere, @authType, NULL, NULL)
+        VALUES (@itemId, @ownerSid, 2, @sid, @sidWhere, @authType, NULL, NULL)
       `)
     return { success: true }
   } catch (err) {
