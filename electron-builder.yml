@@ -1,5 +1,6 @@
 appId: com.netsqlazman.gui
 productName: NetSqlAzMan Manager
+icon: build/icon.png
 
 directories:
   output: release

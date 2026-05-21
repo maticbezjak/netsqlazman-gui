@@ -12,6 +12,7 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build:renderer": "vite build",
     "build": "npm run build:renderer && electron-builder",
+    "make-icon": "node scripts/makeIcon.js",
     "start": "electron .",
     "serve": "node server/index.js",
     "docker:build": "docker build -t netsqlazman-gui .",
@@ -25,6 +26,7 @@
     "mssql": "^12.5.2"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
