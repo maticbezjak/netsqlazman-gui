@@ -6,11 +6,18 @@
 - Release naming: tags → `vX.Y.Z`, build numbers on master pushes → `X.Y.Z.{BuildId}` (artifact only, no GitHub release).
 
 ## Pipeline
-- Three stages: Windows (windows-latest), macOS (Mac Mini self-hosted), Linux (ubuntu-latest).
+- Four stages: Windows (windows-latest), macOS (Mac Mini self-hosted), Linux (ubuntu-latest), Docker (ubuntu-latest).
 - Signing: Windows via AzureSignTool + Key Vault, macOS via Keychain on Mac Mini + notarize.
 - Secrets in `deploy-vault-secrets` variable group (linked to MantoElectron Key Vault, dash-separated names e.g. `GH-TOKEN`).
 - Tag push → `PUBLISH_FLAG=always` → publishes to GitHub Releases + triggers auto-update on clients.
 - Master push → `PUBLISH_FLAG=never` → artifact only.
+
+## Docker
+- Docker Hub image: `brezjakmanto/netsqlazman-gui` (username: `brezjakmanto`).
+- Tag builds push both a versioned tag and `latest` to Docker Hub.
+- `DOCKERHUB-TOKEN` secret in Key Vault / variable group `deploy-vault-secrets`.
+- Web mode: Express backend (`server/index.js`) + React frontend (`dist/`). DB connection via env vars (`DB_SERVER`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`).
+- `docker-compose.yml` available for local/server deployment.
 
 ## DB
 - MCP SQL server at `C:\GIT\MCP_SQL` (dev: 192.168.87.91:1434, sa).
