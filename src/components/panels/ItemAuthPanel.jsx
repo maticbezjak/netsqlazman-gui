@@ -39,7 +39,6 @@ export default function ItemAuthPanel({ item, onDeleted }) {
   const [dbUsers, setDbUsers]               = useState([])
   const [loading, setLoading]               = useState(true)
 
-  const [showAdd, setShowAdd]   = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [newType, setNewType]   = useState(1)
   const [adding, setAdding]     = useState(false)
@@ -49,7 +48,7 @@ export default function ItemAuthPanel({ item, onDeleted }) {
   const { sorted, sort, toggleSort } = useSorted(authorizations, 'Name')
 
   useEffect(() => {
-    closeAdd()
+    setSelected(new Set())
     load()
   }, [item.ItemId])
 
@@ -69,11 +68,6 @@ export default function ItemAuthPanel({ item, onDeleted }) {
     ])
     setAllGroups(groupsRes.data || [])
     setDbUsers(usersRes.data || [])
-  }
-
-  function closeAdd() {
-    setShowAdd(false)
-    setSelected(new Set())
   }
 
   function toggle(value) {
@@ -113,7 +107,7 @@ export default function ItemAuthPanel({ item, onDeleted }) {
     } else {
       toast.success(`${selected.size} authorization(s) added`)
     }
-    closeAdd()
+    setSelected(new Set())
     load()
   }
 
@@ -166,83 +160,83 @@ export default function ItemAuthPanel({ item, onDeleted }) {
         <span className="panel-count">
           {authorizations.length} authorization{authorizations.length !== 1 ? 's' : ''}
         </span>
-        <button className="btn btn-primary btn-sm" onClick={() => (showAdd ? closeAdd() : setShowAdd(true))}>
-          {showAdd ? 'Cancel' : '+ Add'}
-        </button>
         <button className="btn btn-ghost btn-sm icon-btn" onClick={load} title="Refresh"><IconRefresh /></button>
       </div>
 
-      {showAdd && (
-        <MultiPicker
-          items={pickerItems}
-          selected={selected}
-          onToggle={toggle}
-          onToggleAll={toggleAll}
-          placeholder="Search principals…"
-          autoFocus
-          footer={
-            <>
-              <select value={newType} onChange={(e) => setNewType(Number(e.target.value))}>
-                {AUTH_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <div className="toolbar-spacer" />
-              {selected.size > 0 && <span className="principal-selected-count">{selected.size} selected</span>}
-              <button className="btn btn-primary btn-sm" onClick={handleAddMany} disabled={adding || !selected.size}>
-                {adding ? 'Adding…' : `Add${selected.size ? ` (${selected.size})` : ''}`}
-              </button>
-            </>
-          }
-        />
-      )}
-
-      {!authorizations.length ? (
-        <div className="empty-table">No authorizations defined for this item.</div>
-      ) : (
-        <div className="tab-content">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <SortTh col="Name"           sort={sort} onSort={toggleSort}>Name</SortTh>
-                <SortTh col="SidWhereDefined" sort={sort} onSort={toggleSort}>Where Defined</SortTh>
-                <th>Authorization</th>
-                <SortTh col="ValidFrom"      sort={sort} onSort={toggleSort}>Valid From</SortTh>
-                <SortTh col="ValidTo"        sort={sort} onSort={toggleSort}>Valid To</SortTh>
-                <th>SID</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((a) => (
-                <tr key={a.AuthorizationId}>
-                  <td className="name-cell">{a.Name || a.SidHex}</td>
-                  <td>{a.SidWhereDefined}</td>
-                  <td>
-                    <select
-                      className={`auth-type-select auth-type-select--${AUTH_CLASS[a.AuthorizationType] ?? ''}`}
-                      value={AUTH_TYPE_NUM[a.AuthorizationType] ?? 0}
-                      onChange={(e) => handleUpdateType(a.AuthorizationId, Number(e.target.value))}
-                    >
-                      {AUTH_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="muted">{a.ValidFrom ? new Date(a.ValidFrom).toLocaleDateString() : '—'}</td>
-                  <td className="muted">{a.ValidTo   ? new Date(a.ValidTo).toLocaleDateString()   : '—'}</td>
-                  <td><SidCell hex={a.SidHex} /></td>
-                  <td>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(a.AuthorizationId, a.Name)}>
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="group-split">
+        {/* ── Left: principal picker ──────────────────────────────── */}
+        <div className="group-split-picker">
+          <MultiPicker
+            items={pickerItems}
+            selected={selected}
+            onToggle={toggle}
+            onToggleAll={toggleAll}
+            placeholder="Search principals…"
+            footer={
+              <>
+                <select value={newType} onChange={(e) => setNewType(Number(e.target.value))}>
+                  {AUTH_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <div className="toolbar-spacer" />
+                {selected.size > 0 && <span className="principal-selected-count">{selected.size} selected</span>}
+                <button className="btn btn-primary btn-sm" onClick={handleAddMany} disabled={adding || !selected.size}>
+                  {adding ? 'Adding…' : `Add${selected.size ? ` (${selected.size})` : ''}`}
+                </button>
+              </>
+            }
+          />
         </div>
-      )}
+
+        {/* ── Right: authorizations table ─────────────────────────── */}
+        <div className="group-split-table">
+          {!authorizations.length ? (
+            <div className="empty-table">No authorizations defined for this item.</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <SortTh col="Name"            sort={sort} onSort={toggleSort}>Name</SortTh>
+                  <SortTh col="SidWhereDefined" sort={sort} onSort={toggleSort}>Where Defined</SortTh>
+                  <th>Authorization</th>
+                  <SortTh col="ValidFrom"       sort={sort} onSort={toggleSort}>Valid From</SortTh>
+                  <SortTh col="ValidTo"         sort={sort} onSort={toggleSort}>Valid To</SortTh>
+                  <th>SID</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((a) => (
+                  <tr key={a.AuthorizationId}>
+                    <td className="name-cell">{a.Name || a.SidHex}</td>
+                    <td>{a.SidWhereDefined}</td>
+                    <td>
+                      <select
+                        className={`auth-type-select auth-type-select--${AUTH_CLASS[a.AuthorizationType] ?? ''}`}
+                        value={AUTH_TYPE_NUM[a.AuthorizationType] ?? 0}
+                        onChange={(e) => handleUpdateType(a.AuthorizationId, Number(e.target.value))}
+                      >
+                        {AUTH_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="muted">{a.ValidFrom ? new Date(a.ValidFrom).toLocaleDateString() : '—'}</td>
+                    <td className="muted">{a.ValidTo   ? new Date(a.ValidTo).toLocaleDateString()   : '—'}</td>
+                    <td><SidCell hex={a.SidHex} /></td>
+                    <td>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(a.AuthorizationId, a.Name)}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

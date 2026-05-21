@@ -20,7 +20,6 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
   const [editDesc, setEditDesc] = useState('')
   const [saving, setSaving]     = useState(false)
 
-  const [showAdd, setShowAdd]         = useState(false)
   const [selected, setSelected]       = useState(new Set())
   const [addIsMember, setAddIsMember] = useState(true)
   const [adding, setAdding]           = useState(false)
@@ -32,7 +31,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
   useEffect(() => {
     setGroup(initialGroup)
     setEditing(false)
-    closeAdd()
+    setSelected(new Set())
     load()
   }, [initialGroup.ApplicationGroupId])
 
@@ -52,11 +51,6 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
     ])
     setAllGroups(groupsRes.data || [])
     setDbUsers(usersRes.data || [])
-  }
-
-  function closeAdd() {
-    setShowAdd(false)
-    setSelected(new Set())
   }
 
   function startEdit() {
@@ -131,7 +125,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
     } else {
       toast.success(`${selected.size} member(s) added`)
     }
-    closeAdd()
+    setSelected(new Set())
     load()
   }
 
@@ -205,9 +199,6 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
           </>
         )}
         <div className="toolbar-spacer" />
-        <button className="btn btn-primary btn-sm" onClick={() => (showAdd ? closeAdd() : setShowAdd(true))}>
-          {showAdd ? 'Cancel' : '+ Add Member'}
-        </button>
         <button className="btn btn-ghost btn-sm icon-btn" onClick={load} title="Refresh"><IconRefresh /></button>
       </div>
 
@@ -224,70 +215,73 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
       )}
       {!editing && group.Description && <p className="panel-desc">{group.Description}</p>}
 
-      {showAdd && (
-        <MultiPicker
-          items={pickerItems}
-          selected={selected}
-          onToggle={toggle}
-          onToggleAll={toggleAll}
-          placeholder="Search principals…"
-          autoFocus
-          footer={
-            <>
-              <select value={addIsMember ? '1' : '0'} onChange={(e) => setAddIsMember(e.target.value === '1')}>
-                <option value="1">Member</option>
-                <option value="0">Non-Member</option>
-              </select>
-              <div className="toolbar-spacer" />
-              {selected.size > 0 && <span className="principal-selected-count">{selected.size} selected</span>}
-              <button className="btn btn-primary btn-sm" onClick={handleAddMembers} disabled={adding || !selected.size}>
-                {adding ? 'Adding…' : `Add${selected.size ? ` (${selected.size})` : ''}`}
-              </button>
-            </>
-          }
-        />
-      )}
-
-      {!members.length ? (
-        <div className="empty-table">No members defined for this group.</div>
-      ) : (
-        <div className="tab-content">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <SortTh col="MemberName"      sort={sort} onSort={toggleSort}>Name</SortTh>
-                <SortTh col="WhereDefinedLabel" sort={sort} onSort={toggleSort}>Where Defined</SortTh>
-                <th>Member / Non Member</th>
-                <th>SID</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedMembers.map((m) => (
-                <tr key={m.ApplicationGroupMemberId}>
-                  <td className="name-cell">
-                    {m.WhereDefined === 1 ? <IconUsers /> : <IconUser />} {m.MemberName || m.SidHex}
-                  </td>
-                  <td>{m.WhereDefinedLabel}</td>
-                  <td>
-                    <button
-                      className={`member-badge ${m.IsMember ? 'member' : 'non-member'} member-toggle`}
-                      onClick={() => handleToggle(m)}
-                      title="Click to toggle"
-                    >
-                      {m.IsMember ? 'Member' : 'Non Member'}
-                    </button>
-                  </td>
-                  <td><SidCell hex={m.SidHex} /></td>
-                  <td>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m)}>Remove</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="group-split">
+        {/* ── Left: principal picker ──────────────────────────────── */}
+        <div className="group-split-picker">
+          <MultiPicker
+            items={pickerItems}
+            selected={selected}
+            onToggle={toggle}
+            onToggleAll={toggleAll}
+            placeholder="Search principals…"
+            footer={
+              <>
+                <select value={addIsMember ? '1' : '0'} onChange={(e) => setAddIsMember(e.target.value === '1')}>
+                  <option value="1">Member</option>
+                  <option value="0">Non-Member</option>
+                </select>
+                <div className="toolbar-spacer" />
+                {selected.size > 0 && <span className="principal-selected-count">{selected.size} selected</span>}
+                <button className="btn btn-primary btn-sm" onClick={handleAddMembers} disabled={adding || !selected.size}>
+                  {adding ? 'Adding…' : `Add${selected.size ? ` (${selected.size})` : ''}`}
+                </button>
+              </>
+            }
+          />
         </div>
-      )}
+
+        {/* ── Right: members table ────────────────────────────────── */}
+        <div className="group-split-table">
+          {!members.length ? (
+            <div className="empty-table">No members defined for this group.</div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <SortTh col="MemberName"        sort={sort} onSort={toggleSort}>Name</SortTh>
+                  <SortTh col="WhereDefinedLabel" sort={sort} onSort={toggleSort}>Where Defined</SortTh>
+                  <th>Member / Non Member</th>
+                  <th>SID</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMembers.map((m) => (
+                  <tr key={m.ApplicationGroupMemberId}>
+                    <td className="name-cell">
+                      {m.WhereDefined === 1 ? <IconUsers /> : <IconUser />} {m.MemberName || m.SidHex}
+                    </td>
+                    <td>{m.WhereDefinedLabel}</td>
+                    <td>
+                      <button
+                        className={`member-badge ${m.IsMember ? 'member' : 'non-member'} member-toggle`}
+                        onClick={() => handleToggle(m)}
+                        title="Click to toggle"
+                      >
+                        {m.IsMember ? 'Member' : 'Non Member'}
+                      </button>
+                    </td>
+                    <td><SidCell hex={m.SidHex} /></td>
+                    <td>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m)}>Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

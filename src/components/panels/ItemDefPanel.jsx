@@ -29,9 +29,8 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
   const [editDesc, setEditDesc] = useState('')
   const [saving, setSaving]     = useState(false)
 
-  const [showAddChild, setShowAddChild] = useState(null)
-  const [addSelected, setAddSelected]   = useState(new Set())
-  const [addingChild, setAddingChild]   = useState(false)
+  const [addSelected, setAddSelected] = useState(new Set())
+  const [addingChild, setAddingChild] = useState(false)
 
   const confirm = useConfirm()
   const toast   = useToast()
@@ -45,13 +44,16 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
   useEffect(() => {
     setItem(initialItem)
     setEditing(false)
-    closeAddChild()
+    setAddSelected(new Set())
     setAvailableByType({})
     setTab(tabs.length ? tabs[tabs.length - 1].label : 'def')
     loadChildren()
   }, [initialItem.ItemId])
 
-  useEffect(() => { closeAddChild() }, [tab])
+  useEffect(() => {
+    setAddSelected(new Set())
+    if (currentTabDef) loadAvailable(currentTabDef.type)
+  }, [tab])
 
   async function loadChildren() {
     if (!CHILD_TABS[initialItem.ItemType]?.length) return
@@ -65,11 +67,6 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
     if (availableByType[type] !== undefined) return
     const r = await window.db.getItemsByType(item.ApplicationId, type)
     setAvailableByType((a) => ({ ...a, [type]: r.data || [] }))
-  }
-
-  function closeAddChild() {
-    setShowAddChild(null)
-    setAddSelected(new Set())
   }
 
   async function handleSave() {
@@ -117,7 +114,7 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
 
   async function handleAddChildren() {
     if (!addSelected.size) return
-    const tabDef = tabs.find((t) => t.label === showAddChild)
+    const tabDef = currentTabDef
     setAddingChild(true)
     const errors = []
     const added  = []
@@ -137,7 +134,7 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
     } else {
       toast.success(`${added.length} item(s) added`)
     }
-    closeAddChild()
+    setAddSelected(new Set())
     setAvailableByType((a) => { const n = { ...a }; delete n[tabDef.type]; return n })
   }
 
@@ -150,6 +147,7 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
     const r = await window.db.removeItemChild({ parentItemId: item.ItemId, childItemId: child.ItemId })
     if (r.success) {
       setAllChildren((c) => c.filter((x) => x.ItemId !== child.ItemId))
+      // Invalidate available cache so removed item reappears in picker
       setAvailableByType((a) => { const n = { ...a }; delete n[child.ItemType]; return n })
       toast.success(`"${child.Name}" removed`)
     } else {
@@ -231,18 +229,17 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
         ) : childLoading ? (
           <SkeletonInline />
         ) : (
-          <>
-            {showAddChild === tab ? (
+          <div className="group-split">
+            {/* ── Left: item picker ──────────────────────────────── */}
+            <div className="group-split-picker">
               <MultiPicker
                 items={pickerItems}
                 selected={addSelected}
                 onToggle={toggle}
                 onToggleAll={toggleAll}
                 placeholder={`Search ${tab.toLowerCase()}…`}
-                autoFocus
                 footer={
                   <>
-                    <button className="btn btn-ghost btn-sm" onClick={closeAddChild}>Cancel</button>
                     <div className="toolbar-spacer" />
                     {addSelected.size > 0 && (
                       <span className="principal-selected-count">{addSelected.size} selected</span>
@@ -257,46 +254,40 @@ export default function ItemDefPanel({ item: initialItem, onItemsChanged, onDele
                   </>
                 }
               />
-            ) : (
-              <div className="child-list-toolbar">
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => { setShowAddChild(tab); loadAvailable(currentTabDef.type) }}
-                >
-                  + Add {ITEM_TYPE_LABEL[currentTabDef?.type]}
-                </button>
-              </div>
-            )}
+            </div>
 
-            {visibleChildren.length === 0 ? (
-              <div className="empty-table">No {tab.toLowerCase()} defined for this item.</div>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <SortTh col="Name"        sort={childSort} onSort={toggleChildSort}>Name</SortTh>
-                    <SortTh col="ItemType"    sort={childSort} onSort={toggleChildSort}>Type</SortTh>
-                    <SortTh col="Description" sort={childSort} onSort={toggleChildSort}>Description</SortTh>
-                    <SortTh col="ItemId"      sort={childSort} onSort={toggleChildSort}>Item ID</SortTh>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedChildren.map((c) => (
-                    <tr key={c.ItemId}>
-                      <td className="name-cell">{ITEM_TYPE_ICON[c.ItemType]} {c.Name}</td>
-                      <td><span className="badge">{ITEM_TYPE_LABEL[c.ItemType]}</span></td>
-                      <td className="muted">{c.Description || '—'}</td>
-                      <td className="muted item-id">{c.ItemId}</td>
-                      <td>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveChild(c)}>Remove</button>
-                      </td>
+            {/* ── Right: children table ───────────────────────────── */}
+            <div className="group-split-table">
+              {visibleChildren.length === 0 ? (
+                <div className="empty-table">No {tab.toLowerCase()} defined for this item.</div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <SortTh col="Name"        sort={childSort} onSort={toggleChildSort}>Name</SortTh>
+                      <SortTh col="ItemType"    sort={childSort} onSort={toggleChildSort}>Type</SortTh>
+                      <SortTh col="Description" sort={childSort} onSort={toggleChildSort}>Description</SortTh>
+                      <SortTh col="ItemId"      sort={childSort} onSort={toggleChildSort}>Item ID</SortTh>
+                      <th></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
+                  </thead>
+                  <tbody>
+                    {sortedChildren.map((c) => (
+                      <tr key={c.ItemId}>
+                        <td className="name-cell">{ITEM_TYPE_ICON[c.ItemType]} {c.Name}</td>
+                        <td><span className="badge">{ITEM_TYPE_LABEL[c.ItemType]}</span></td>
+                        <td className="muted">{c.Description || '—'}</td>
+                        <td className="muted item-id">{c.ItemId}</td>
+                        <td>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleRemoveChild(c)}>Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
