@@ -54,6 +54,15 @@ app.get('/api/health', wrap(async () => {
 app.post('/api/db/connect',    wrap(async () => ({ success: true })))
 app.post('/api/db/disconnect', wrap(async () => ({ success: true })))
 
+// List databases on the same server (uses existing pool's connection)
+app.get('/api/db/list-databases', wrap(async () => {
+  const p = await getPool()
+  const r = await p.request().query(
+    `SELECT name FROM sys.databases WHERE name <> 'tempdb' ORDER BY name`
+  )
+  return { data: r.recordset.map((row) => row.name) }
+}))
+
 // ── Connections (stored in memory per session — web clients use localStorage) ──
 // These endpoints are no-ops; the web adapter uses localStorage directly.
 app.get('/api/connections',        (_req, res) => res.json([]))

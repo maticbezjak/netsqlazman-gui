@@ -123,6 +123,30 @@ ipcMain.handle('db:disconnect', async () => {
   return { success: true }
 })
 
+ipcMain.handle('db:listDatabases', async (_, { server, port, user, password }) => {
+  let tempPool = null
+  try {
+    tempPool = new sql.ConnectionPool({
+      server,
+      port:     parseInt(port) || 1433,
+      user,
+      password,
+      database: 'master',
+      options:  { encrypt: false, trustServerCertificate: true, enableArithAbort: true },
+      connectionTimeout: 8000,
+    })
+    await tempPool.connect()
+    const r = await tempPool.request().query(
+      `SELECT name FROM sys.databases WHERE name <> 'tempdb' ORDER BY name`
+    )
+    return { data: r.recordset.map((row) => row.name) }
+  } catch (err) {
+    return { error: err.message }
+  } finally {
+    try { if (tempPool) await tempPool.close() } catch {}
+  }
+})
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 ipcMain.handle('db:getStores', async () => {

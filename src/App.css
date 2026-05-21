@@ -105,8 +105,30 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 .conn-port     { flex: 0 0 52px; }
 .conn-user     { flex: 1.2; }
 .conn-password { flex: 1.2; }
-.conn-db       { flex: 1.5; }
+.conn-db       { flex: 1; min-width: 0; padding-right: 26px; }
 .conn-error { color: var(--color-error); font-size: 12px; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Database picker combobox */
+.conn-db-wrap  { position: relative; flex: 1.5; display: flex; align-items: center; }
+.db-browse-btn {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; cursor: pointer; padding: 2px 4px;
+  color: var(--text-muted); display: flex; align-items: center; border-radius: 3px;
+  font-size: 12px; line-height: 1;
+}
+.db-browse-btn:hover:not(:disabled) { color: var(--text-body); background: var(--accent-bg); }
+.db-browse-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.db-dropdown {
+  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 300;
+  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18); max-height: 220px; overflow-y: auto;
+}
+.db-dropdown-item {
+  padding: 6px 10px; cursor: pointer; font-size: 13px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.db-dropdown-item:hover  { background: var(--accent-bg); }
+.db-dropdown-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 500; }
 
 .conn-status { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }
 .status-dot  { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }

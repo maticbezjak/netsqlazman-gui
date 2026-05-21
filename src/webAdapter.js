@@ -39,8 +39,9 @@ export function installWebAdapter() {
   // ── DB ───────────────────────────────────────────────────────────────────
   window.db = {
     // In web mode the server holds the connection — these are no-ops
-    connect:    () => post('/api/db/connect'),
-    disconnect: () => post('/api/db/disconnect'),
+    connect:        () => post('/api/db/connect'),
+    disconnect:     () => post('/api/db/disconnect'),
+    listDatabases:  () => get('/api/db/list-databases'),
 
     // Read
     getStores:                  ()                       => get(`/api/db/stores`),

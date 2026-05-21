@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('db', {
   updateAuthorization: (data)   => ipcRenderer.invoke('db:updateAuthorization', data),
   deleteAuthorization: (authId) => ipcRenderer.invoke('db:deleteAuthorization', authId),
 
+  // ── Utility
+  listDatabases:            (creds)    => ipcRenderer.invoke('db:listDatabases', creds),
+
   // ── User Lookup ────────────────────────────────────────────────────────────
   searchUsers:              (query)    => ipcRenderer.invoke('db:searchUsers', query),
   getAzmanGroups:           ()         => ipcRenderer.invoke('db:getAzmanGroups'),

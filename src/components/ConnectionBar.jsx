@@ -16,10 +16,18 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
   const [savedFlash, setSavedFlash]       = useState(false)  // brief "Saved!" confirmation
   const dropdownRef = useRef(null)
 
+  // ── Database picker ────────────────────────────────────────────────────────
+  const [dbList, setDbList]       = useState([])
+  const [dbLoading, setDbLoading] = useState(false)
+  const [dbError, setDbError]     = useState('')
+  const [showDbDrop, setShowDbDrop] = useState(false)
+  const dbWrapRef = useRef(null)
+
   useEffect(() => {
     loadSaved()
     const close = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowDropdown(false)
+      if (dbWrapRef.current && !dbWrapRef.current.contains(e.target)) setShowDbDrop(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
@@ -58,8 +66,28 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
   function applyConnection(conn) {
     setConfig({ server: conn.server, port: conn.port, user: conn.user, password: conn.password, database: conn.database })
     setShowDropdown(false)
+    setDbList([])
     setError('')
   }
+
+  async function fetchDatabases() {
+    setDbLoading(true)
+    setDbError('')
+    setShowDbDrop(false)
+    const r = await window.db.listDatabases({ server: config.server, port: config.port, user: config.user, password: config.password })
+    setDbLoading(false)
+    if (r.data) {
+      setDbList(r.data)
+      setShowDbDrop(true)
+    } else {
+      setDbError(r.error || 'Could not connect')
+    }
+  }
+
+  const canFetchDbs = !!(config.server && config.user && config.password)
+  const filteredDbs = dbList.filter((name) =>
+    !config.database || name.toLowerCase().includes(config.database.toLowerCase())
+  )
 
   async function handleSave() {
     if (!saveName.trim()) return
@@ -169,7 +197,40 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
           <input className="conn-port"     placeholder="Port"     value={config.port}     onChange={set('port')} />
           <input className="conn-user"     placeholder="User"     value={config.user}     onChange={set('user')} />
           <input className="conn-password" type="password" placeholder="Password" value={config.password} onChange={set('password')} />
-          <input className="conn-db"       placeholder="Database" value={config.database} onChange={set('database')} />
+
+          {/* ── Database picker ─────────────────────── */}
+          <div className="conn-db-wrap" ref={dbWrapRef}>
+            <input
+              className="conn-db"
+              placeholder="Database"
+              value={config.database}
+              onChange={(e) => { set('database')(e); setShowDbDrop(dbList.length > 0) }}
+              onFocus={() => { if (dbList.length > 0) setShowDbDrop(true) }}
+              onKeyDown={(e) => { if (e.key === 'Escape') setShowDbDrop(false) }}
+            />
+            <button
+              className="db-browse-btn"
+              type="button"
+              onClick={fetchDatabases}
+              disabled={dbLoading || !canFetchDbs}
+              title={canFetchDbs ? (dbError || 'Browse available databases') : 'Enter server, user and password first'}
+            >
+              {dbLoading ? '…' : <IconChevDown />}
+            </button>
+            {showDbDrop && filteredDbs.length > 0 && (
+              <div className="db-dropdown">
+                {filteredDbs.map((name) => (
+                  <div
+                    key={name}
+                    className={`db-dropdown-item${config.database === name ? ' active' : ''}`}
+                    onMouseDown={(e) => { e.preventDefault(); setConfig((c) => ({ ...c, database: name })); setShowDbDrop(false) }}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             className="btn btn-primary"
