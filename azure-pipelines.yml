@@ -57,7 +57,7 @@ stages:
           $version = "$base.$(Build.BuildId)"
           Write-Host "##vso[task.setvariable variable=PUBLISH_FLAG]never"
         }
-        npm version $version --no-git-tag-version --allow-same-version
+        node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version='$version';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
         Write-Host "##vso[build.updatebuildnumber]$version"
         Write-Host "Building version: $version"
       displayName: 'Set build version'
@@ -126,7 +126,7 @@ stages:
           VERSION="$BASE.$(Build.BuildId)"
           echo "##vso[task.setvariable variable=PUBLISH_FLAG]never"
         fi
-        npm version $VERSION --no-git-tag-version --allow-same-version
+        node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version='$VERSION';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
         echo "##vso[build.updatebuildnumber]$VERSION"
         echo "Building version: $VERSION"
       displayName: 'Set build version'
@@ -191,7 +191,7 @@ stages:
           VERSION="$BASE.$(Build.BuildId)"
           echo "##vso[task.setvariable variable=PUBLISH_FLAG]never"
         fi
-        npm version $VERSION --no-git-tag-version --allow-same-version
+        node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version='$VERSION';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
         echo "##vso[build.updatebuildnumber]$VERSION"
         echo "Building version: $VERSION"
       displayName: 'Set build version'
