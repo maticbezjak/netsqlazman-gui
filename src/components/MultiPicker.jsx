@@ -28,8 +28,10 @@ export default function MultiPicker({
     if (autoFocus) inputRef.current?.focus()
   }, [])
 
-  const q        = search.toLowerCase()
-  const filtered = q ? items.filter((i) => i.label.toLowerCase().includes(q)) : items
+  // Accent/diacritic-insensitive normalisation: "Hatic" matches "Hatič"
+  const norm     = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const q        = norm(search)
+  const filtered = q ? items.filter((i) => norm(i.label).includes(q)) : items
 
   // Build section headers
   const rows = []
