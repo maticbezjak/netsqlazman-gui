@@ -318,13 +318,15 @@ ipcMain.handle('db:getApplicationGroups', async (_, applicationId) => {
   }
 })
 
-// Returns all database users (WhereDefined=4 principals)
+// Returns all database users via the custom netsqlazman_GetDBUsers TVF (reads from Zaposleni)
 ipcMain.handle('db:getDatabaseUsers', async () => {
   if (!currentPool) return { error: 'Not connected' }
   try {
     const r = await currentPool.request()
-      .query(`SELECT DBUserSid, DBUserName, CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
-              FROM netsqlazman_DatabaseUsers ORDER BY DBUserName`)
+      .query(`SELECT DBUserSid, DBUserName, FullName,
+                     CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
+              FROM dbo.netsqlazman_GetDBUsers(NULL, NULL, NULL, NULL)
+              ORDER BY DBUserName`)
     return { data: r.recordset }
   } catch (err) {
     return { error: err.message }

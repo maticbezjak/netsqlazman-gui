@@ -152,7 +152,10 @@ app.get('/api/db/groups/:groupId/members', wrap(async (req) => {
 app.get('/api/db/database-users', wrap(async () => {
   const p = await getPool()
   const r = await p.request()
-    .query('SELECT DBUserSid, DBUserName, CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex FROM netsqlazman_DatabaseUsers ORDER BY DBUserName')
+    .query(`SELECT DBUserSid, DBUserName, FullName,
+                   CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
+            FROM dbo.netsqlazman_GetDBUsers(NULL, NULL, NULL, NULL)
+            ORDER BY DBUserName`)
   return { data: r.recordset }
 }))
 

@@ -147,7 +147,7 @@ export default function ItemAuthPanel({ item, onDeleted }) {
       .map((g) => ({ value: `1:${g.SidHex}`, label: g.Name,       icon: <IconUsers />, group: 'Application Groups' })),
     ...dbUsers
       .filter((u) => !authorizedSids.has(u.SidHex))
-      .map((u) => ({ value: `4:${u.SidHex}`, label: u.DBUserName, icon: <IconUser />,  group: 'Database Users' })),
+      .map((u) => ({ value: `4:${u.SidHex}`, label: u.FullName ? `${u.FullName} (${u.DBUserName})` : u.DBUserName, icon: <IconUser />,  group: 'Database Users' })),
   ]
 
   if (loading) return <SkeletonPanel />

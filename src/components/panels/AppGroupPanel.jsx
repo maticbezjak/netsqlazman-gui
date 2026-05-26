@@ -162,7 +162,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
       .map((g) => ({ value: `1:${g.SidHex}`, label: g.Name,       icon: <IconUsers />, group: 'Application Groups' })),
     ...dbUsers
       .filter((u) => !existingSids.has(u.SidHex))
-      .map((u) => ({ value: `4:${u.SidHex}`, label: u.DBUserName, icon: <IconUser />,  group: 'Database Users' })),
+      .map((u) => ({ value: `4:${u.SidHex}`, label: u.FullName ? `${u.FullName} (${u.DBUserName})` : u.DBUserName, icon: <IconUser />,  group: 'Database Users' })),
   ]
 
   if (loading) return <SkeletonPanel />
