@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import MainPanel from './components/MainPanel'
 import Breadcrumb from './components/Breadcrumb'
 import UserLookup from './components/UserLookup'
+import UserCompare from './components/UserCompare'
 import HelpModal from './components/HelpModal'
 import { IconLock } from './components/Icon'
 import { ToastProvider } from './components/Toast'
@@ -61,8 +62,11 @@ export default function App() {
               <button className={`tab-btn ${view === 'store'  ? 'active' : ''}`} onClick={() => setView('store')}>
                 Store Browser
               </button>
-              <button className={`tab-btn ${view === 'lookup' ? 'active' : ''}`} onClick={() => setView('lookup')}>
+              <button className={`tab-btn ${view === 'lookup'  ? 'active' : ''}`} onClick={() => setView('lookup')}>
                 User Lookup
+              </button>
+              <button className={`tab-btn ${view === 'compare' ? 'active' : ''}`} onClick={() => setView('compare')}>
+                Compare Users
               </button>
             </div>
           )}
@@ -91,6 +95,8 @@ export default function App() {
                 </div>
               ) : view === 'lookup' ? (
                 <UserLookup />
+              ) : view === 'compare' ? (
+                <UserCompare />
               ) : (
                 <>
                   <Breadcrumb selection={selection} />

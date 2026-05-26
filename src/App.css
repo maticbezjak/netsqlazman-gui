@@ -808,3 +808,109 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 .user-graph-svg {
   flex: 1; width: 100%;
 }
+
+/* ── User Compare ──────────────────────────────────────────────────────────── */
+
+.user-compare {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; gap: 0;
+}
+
+/* search header */
+.cmp-header {
+  display: flex; align-items: flex-end; gap: 12px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+.cmp-vs {
+  font-size: 13px; font-weight: 700; color: var(--text-muted);
+  padding-bottom: 8px; flex-shrink: 0;
+}
+.cmp-search-box { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.cmp-slot-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.cmp-input-wrap { position: relative; }
+.cmp-input {
+  width: 100%; padding: 7px 32px 7px 10px; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--bg-raised);
+  font-size: 13px; color: var(--text-primary); outline: none; box-sizing: border-box;
+}
+.cmp-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.cmp-input.has-value { border-color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+.cmp-spinner, .cmp-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; color: var(--text-muted); cursor: pointer; line-height: 1;
+}
+.cmp-clear:hover { color: var(--text-primary); }
+
+.cmp-dropdown {
+  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 200;
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: 8px; box-shadow: var(--shadow-panel); overflow: hidden;
+}
+.cmp-suggestion {
+  display: flex; flex-direction: column; padding: 7px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border-muted);
+}
+.cmp-suggestion:last-child { border-bottom: none; }
+.cmp-suggestion:hover { background: var(--bg-hover); }
+.cmp-sug-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.cmp-sug-user { font-size: 11px; color: var(--text-muted); }
+
+/* results */
+.cmp-results {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+  gap: 0; padding: 0;
+}
+.cmp-section { border-bottom: 1px solid var(--border); }
+
+.cmp-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 24px; background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-muted);
+  position: sticky; top: 0; z-index: 1;
+}
+.cmp-section-title { font-size: 13px; font-weight: 700; color: var(--text-primary); flex: 1; }
+.cmp-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px;
+  border-radius: 99px; white-space: nowrap;
+}
+.cmp-badge-both  { background: #dcfce7; color: #15803d; }
+.cmp-badge-a     { background: #e0e7ff; color: #4338ca; }
+.cmp-badge-b     { background: #fef3c7; color: #b45309; }
+
+.cmp-empty { padding: 16px 24px; font-size: 13px; color: var(--text-muted); }
+
+.cmp-table-wrap { overflow-x: auto; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp-table thead th {
+  padding: 8px 16px; text-align: left; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted); background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.cmp-col-user { text-align: center !important; width: 110px; }
+.cmp-table tbody tr { border-bottom: 1px solid var(--border-muted); }
+.cmp-table tbody tr:last-child { border-bottom: none; }
+.cmp-table td { padding: 7px 16px; color: var(--text-body); }
+.cmp-check { text-align: center; font-size: 15px; }
+
+/* row colour coding */
+.cmp-both  { background: transparent; }
+.cmp-only-a { background: #eef2ff; }
+.cmp-only-a td:first-child { color: #4338ca; font-weight: 500; }
+.cmp-only-a .cmp-check:first-of-type { color: #4338ca; }
+.cmp-only-b { background: #fffbeb; }
+.cmp-only-b td:first-child { color: #b45309; font-weight: 500; }
+.cmp-only-b .cmp-check:last-child { color: #b45309; }
+
+[data-theme="dark"] .cmp-badge-both  { background: #14532d; color: #86efac; }
+[data-theme="dark"] .cmp-badge-a     { background: #1e1b4b; color: #a5b4fc; }
+[data-theme="dark"] .cmp-badge-b     { background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .cmp-only-a      { background: rgba(99,102,241,0.12); }
+[data-theme="dark"] .cmp-only-a td:first-child { color: #a5b4fc; }
+[data-theme="dark"] .cmp-only-b      { background: rgba(245,158,11,0.10); }
+[data-theme="dark"] .cmp-only-b td:first-child { color: #fcd34d; }
