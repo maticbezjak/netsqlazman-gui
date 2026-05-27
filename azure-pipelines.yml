@@ -2,7 +2,7 @@
 # NetSqlAzMan Manager — Azure DevOps CI/CD
 #
 # Build numbering:
-#   master push  →  1.0.{BuildId}     (publishes to GitHub Releases → auto-update)
+#   master push  →  1.0.{BuildId}     (assets uploaded to current Latest release)
 #
 # Signing:
 #   Windows: AzureSignTool via Key Vault (private key never exported)
@@ -42,7 +42,7 @@ stages:
     - script: npm ci
       displayName: 'Install dependencies'
 
-    # ── Version + publish flag ────────────────────────────────────────────
+    # ── Version ───────────────────────────────────────────────────────────
     - powershell: |
         $base = node -e "process.stdout.write(require('./package.json').version)"
         $parts = $base.Split('.')
@@ -60,16 +60,25 @@ stages:
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: package + sign + publish ────────────────────────
-    - script: npx electron-builder --publish always
-      displayName: 'Package, sign & publish (electron-builder)'
+    # ── electron-builder: package + sign (no publish) ─────────────────────
+    - script: npx electron-builder --publish never
+      displayName: 'Package & sign (electron-builder)'
       env:
         AZURE_KEY_VAULT_URL:    $(AZURE-KEY-VAULT-URL)
         AZURE_CLIENT_ID:        $(AZURE-CLIENT-ID)
         AZURE_CLIENT_SECRET:    $(AZURE-CLIENT-SECRET)
         AZURE_TENANT_ID:        $(AZURE-TENANT-ID)
         AZURE_CERT_NAME:        $(AZURE-CERT-NAME)
-        GH_TOKEN:               $(GH-TOKEN)
+
+    # ── Upload assets into the current Latest GitHub release ──────────────
+    - bash: |
+        TAG=$(gh release view --json tagName --jq '.tagName')
+        echo "Uploading Windows assets to release: $TAG"
+        find release -maxdepth 2 -type f \( -name "*.exe" -o -name "*.blockmap" -o -name "latest.yml" \) \
+          | xargs gh release upload "$TAG" --clobber
+      displayName: 'Upload Windows assets to latest GitHub release'
+      env:
+        GH_TOKEN: $(GH-TOKEN)
 
     # ── Publish installer as pipeline artifact ────────────────────────────
     - task: CopyFiles@2
@@ -120,9 +129,17 @@ stages:
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: package + sign + notarize + publish ────────────
-    - script: npx electron-builder --mac --publish always
-      displayName: 'Package, sign, notarize & publish (electron-builder)'
+    # ── electron-builder: package + sign + notarize (no publish) ─────────
+    - script: npx electron-builder --mac --publish never
+      displayName: 'Package, sign & notarize (electron-builder)'
+
+    # ── Upload assets into the current Latest GitHub release ──────────────
+    - bash: |
+        TAG=$(gh release view --json tagName --jq '.tagName')
+        echo "Uploading macOS assets to release: $TAG"
+        find release -maxdepth 2 -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.blockmap" -o -name "latest-mac.yml" \) \
+          | xargs gh release upload "$TAG" --clobber
+      displayName: 'Upload macOS assets to latest GitHub release'
       env:
         GH_TOKEN: $(GH-TOKEN)
 
@@ -180,9 +197,17 @@ stages:
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
 
-    # ── electron-builder: .deb + .rpm + publish ───────────────────────────
-    - script: npx electron-builder --linux --publish always
-      displayName: 'Package Linux & publish (deb + rpm)'
+    # ── electron-builder: .deb + .rpm (no publish) ────────────────────────
+    - script: npx electron-builder --linux --publish never
+      displayName: 'Package Linux (deb + rpm)'
+
+    # ── Upload assets into the current Latest GitHub release ──────────────
+    - bash: |
+        TAG=$(gh release view --json tagName --jq '.tagName')
+        echo "Uploading Linux assets to release: $TAG"
+        find release -maxdepth 2 -type f \( -name "*.deb" -o -name "*.rpm" -o -name "latest-linux*.yml" \) \
+          | xargs gh release upload "$TAG" --clobber
+      displayName: 'Upload Linux assets to latest GitHub release'
       env:
         GH_TOKEN: $(GH-TOKEN)
 
