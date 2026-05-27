@@ -81,7 +81,7 @@ stages:
     - bash: |
         TAG=$(gh release view --json tagName --jq '.tagName')
         echo "Uploading Windows assets to release: $TAG"
-        find release -maxdepth 2 -type f \( -name "*.exe" -o -name "*.blockmap" -o -name "latest.yml" \) -print0 \
+        find release -maxdepth 1 -type f \( -name "*.exe" -o -name "*.blockmap" -o -name "latest.yml" \) -print0 \
           | xargs -0 gh release upload "$TAG" --clobber
       displayName: 'Upload Windows assets to latest GitHub release'
       env:
@@ -151,7 +151,7 @@ stages:
     - bash: |
         TAG=$(gh release view --json tagName --jq '.tagName')
         echo "Uploading macOS assets to release: $TAG"
-        find release -maxdepth 2 -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.blockmap" -o -name "latest-mac.yml" \) -print0 \
+        find release -maxdepth 1 -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.blockmap" -o -name "latest-mac.yml" \) -print0 \
           | xargs -0 gh release upload "$TAG" --clobber
       displayName: 'Upload macOS assets to latest GitHub release'
       env:
@@ -226,7 +226,7 @@ stages:
     - bash: |
         TAG=$(gh release view --json tagName --jq '.tagName')
         echo "Uploading Linux assets to release: $TAG"
-        find release -maxdepth 2 -type f \( -name "*.deb" -o -name "*.rpm" -o -name "latest-linux*.yml" \) -print0 \
+        find release -maxdepth 1 -type f \( -name "*.deb" -o -name "*.rpm" -o -name "latest-linux*.yml" \) -print0 \
           | xargs -0 gh release upload "$TAG" --clobber
       displayName: 'Upload Linux assets to latest GitHub release'
       env:
