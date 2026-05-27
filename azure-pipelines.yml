@@ -39,7 +39,14 @@ stages:
       inputs:
         versionSpec: '20.x'
 
-    - script: npm ci
+    - task: Cache@2
+      displayName: 'Cache npm packages'
+      inputs:
+        key: 'npm | "$(Agent.OS)" | package-lock.json'
+        restoreKeys: npm | "$(Agent.OS)"
+        path: $(Pipeline.Workspace)/.npm
+
+    - script: npm ci --cache $(Pipeline.Workspace)/.npm
       displayName: 'Install dependencies'
 
     # ── Version ───────────────────────────────────────────────────────────
@@ -111,7 +118,14 @@ stages:
     - bash: cp /Users/mantoadmin/env/.env .
       displayName: 'Load Apple credentials from .env'
 
-    - script: npm ci
+    - task: Cache@2
+      displayName: 'Cache npm packages'
+      inputs:
+        key: 'npm | "$(Agent.OS)" | package-lock.json'
+        restoreKeys: npm | "$(Agent.OS)"
+        path: $(Pipeline.Workspace)/.npm
+
+    - script: npm ci --cache $(Pipeline.Workspace)/.npm
       displayName: 'Install dependencies'
 
     # ── Version ───────────────────────────────────────────────────────────
@@ -179,7 +193,14 @@ stages:
     - script: sudo apt-get install -y rpm
       displayName: 'Install rpm build tools'
 
-    - script: npm ci
+    - task: Cache@2
+      displayName: 'Cache npm packages'
+      inputs:
+        key: 'npm | "$(Agent.OS)" | package-lock.json'
+        restoreKeys: npm | "$(Agent.OS)"
+        path: $(Pipeline.Workspace)/.npm
+
+    - script: npm ci --cache $(Pipeline.Workspace)/.npm
       displayName: 'Install dependencies'
 
     # ── Version ───────────────────────────────────────────────────────────
@@ -238,30 +259,19 @@ stages:
       vmImage: 'ubuntu-latest'
     steps:
 
-    # ── Node.js (needed for Vite build inside Docker) ─────────────────────
-    - task: NodeTool@0
-      displayName: 'Install Node.js 20'
-      inputs:
-        versionSpec: '20.x'
-
-    # ── Version + push flag ───────────────────────────────────────────────
+    # ── Resolve semantic version from current Latest release ──────────────
     - bash: |
-        BRANCH="$(Build.SourceBranch)"
-        if [[ "$BRANCH" == refs/tags/v* ]]; then
-          VERSION="${BRANCH#refs/tags/v}"
-          echo "##vso[task.setvariable variable=IMAGE_TAG]$VERSION"
-          echo "##vso[task.setvariable variable=SHOULD_PUSH]true"
-        else
-          BASE=$(node -e "process.stdout.write(require('./package.json').version)")
-          echo "##vso[task.setvariable variable=IMAGE_TAG]$BASE.$(Build.BuildId)"
-          echo "##vso[task.setvariable variable=SHOULD_PUSH]false"
-        fi
-      displayName: 'Set image tag'
+        TAG=$(gh release view --json tagName --jq '.tagName')
+        VERSION="${TAG#v}"
+        echo "##vso[task.setvariable variable=IMAGE_TAG]$VERSION"
+        echo "Docker image version: $VERSION"
+      displayName: 'Set image tag from latest release'
+      env:
+        GH_TOKEN: $(GH-TOKEN)
 
     # ── Docker login ──────────────────────────────────────────────────────
     - bash: echo "$(DOCKERHUB-TOKEN)" | docker login -u "brezjakmanto" --password-stdin
       displayName: 'Login to Docker Hub'
-      condition: eq(variables['SHOULD_PUSH'], 'true')
       env:
         DOCKERHUB-TOKEN: $(DOCKERHUB-TOKEN)
 
@@ -274,4 +284,3 @@ stages:
         docker push "$IMAGE:latest"
         echo "Pushed $IMAGE:$VERSION and $IMAGE:latest"
       displayName: 'Build & push Docker image'
-      condition: eq(variables['SHOULD_PUSH'], 'true')

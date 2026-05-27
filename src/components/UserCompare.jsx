@@ -1,26 +1,14 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState } from 'react'
+import CopyBtn from './CopyBtn'
+import { useUserSearch } from '../hooks/useUserSearch'
+import { exportCSV } from '../utils/csv'
 
 // ── Reusable autocomplete search box ─────────────────────────────────────────
 
 function CompareSearchBox({ slot, onSelect }) {
-  const [query, setQuery]           = useState('')
-  const [suggestions, setSuggestions] = useState([])
-  const [showDrop, setShowDrop]     = useState(false)
-  const [selected, setSelected]     = useState(null)   // { username, displayName }
-  const [loading, setLoading]       = useState(false)
-  const debounceRef = useRef(null)
-  const wrapRef     = useRef(null)
-
-  const onQueryChange = useCallback((val) => {
-    setQuery(val)
-    setSelected(null)
-    clearTimeout(debounceRef.current)
-    if (!val.trim()) { setSuggestions([]); setShowDrop(false); return }
-    debounceRef.current = setTimeout(async () => {
-      const res = await window.db.searchUsers(val.trim())
-      if (res.data) { setSuggestions(res.data); setShowDrop(res.data.length > 0) }
-    }, 280)
-  }, [])
+  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, onQueryChange } = useUserSearch()
+  const [selected, setSelected] = useState(null)   // { username, displayName }
+  const [loading, setLoading]   = useState(false)
 
   async function pick(username, displayName) {
     setShowDrop(false)
@@ -51,8 +39,12 @@ function CompareSearchBox({ slot, onSelect }) {
     if (e.key === 'Escape') setShowDrop(false)
   }
 
+  function clear() {
+    setQuery(''); setSelected(null); setSuggestions([]); onSelect(null)
+  }
+
   return (
-    <div className="cmp-search-box" ref={wrapRef}>
+    <div className="cmp-search-box">
       <div className="cmp-slot-label">{slot}</div>
       <div className="cmp-input-wrap">
         <input
@@ -64,7 +56,7 @@ function CompareSearchBox({ slot, onSelect }) {
           onKeyDown={handleKeyDown}
         />
         {loading && <span className="cmp-spinner">…</span>}
-        {selected && !loading && <span className="cmp-clear" onClick={() => { setQuery(''); setSelected(null); setSuggestions([]); onSelect(null) }}>✕</span>}
+        {selected && !loading && <span className="cmp-clear" onClick={clear}>✕</span>}
 
         {showDrop && suggestions.length > 0 && (
           <div className="cmp-dropdown">
@@ -84,11 +76,17 @@ function CompareSearchBox({ slot, onSelect }) {
 
 // ── Comparison logic ──────────────────────────────────────────────────────────
 
+function getRowKey(row) {
+  // Prefer well-known name columns; fall back to first column value.
+  const val = row.Name ?? row.GroupName ?? row.RoleName ?? row.OperationName
+    ?? row.ApplicationName ?? Object.values(row)[0]
+  return String(val ?? '')
+}
+
 function compareSection(aRows, bRows) {
-  const getKey = (row) => String(Object.values(row)[0])
-  const aMap   = new Map((aRows || []).map((r) => [getKey(r), r]))
-  const bMap   = new Map((bRows || []).map((r) => [getKey(r), r]))
-  const keys   = new Set([...aMap.keys(), ...bMap.keys()])
+  const aMap = new Map((aRows || []).map((r) => [getRowKey(r), r]))
+  const bMap = new Map((bRows || []).map((r) => [getRowKey(r), r]))
+  const keys = new Set([...aMap.keys(), ...bMap.keys()])
   return [...keys].sort((a, b) => a.localeCompare(b)).map((key) => ({
     key,
     inA: aMap.has(key),
@@ -99,9 +97,18 @@ function compareSection(aRows, bRows) {
 // ── Section table ─────────────────────────────────────────────────────────────
 
 function CompareSection({ title, rows, nameA, nameB }) {
-  const both   = rows.filter((r) => r.inA && r.inB).length
-  const onlyA  = rows.filter((r) => r.inA && !r.inB).length
-  const onlyB  = rows.filter((r) => !r.inA && r.inB).length
+  const both  = rows.filter((r) =>  r.inA &&  r.inB).length
+  const onlyA = rows.filter((r) =>  r.inA && !r.inB).length
+  const onlyB = rows.filter((r) => !r.inA &&  r.inB).length
+
+  function doExport() {
+    const data = rows.map((r) => ({
+      Name:    r.key,
+      [nameA]: r.inA ? 'Yes' : 'No',
+      [nameB]: r.inB ? 'Yes' : 'No',
+    }))
+    exportCSV(data, `compare-${title.toLowerCase().replace(/\s+/g, '-')}.csv`)
+  }
 
   return (
     <div className="cmp-section">
@@ -110,6 +117,10 @@ function CompareSection({ title, rows, nameA, nameB }) {
         <span className="cmp-badge cmp-badge-both">{both} shared</span>
         <span className="cmp-badge cmp-badge-a">{onlyA} only {nameA}</span>
         <span className="cmp-badge cmp-badge-b">{onlyB} only {nameB}</span>
+        <div style={{ flex: 1 }} />
+        {rows.length > 0 && (
+          <button className="btn-export" onClick={doExport} title="Export to CSV">↓ CSV</button>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -129,7 +140,12 @@ function CompareSection({ title, rows, nameA, nameB }) {
                 <tr key={row.key} className={
                   row.inA && row.inB ? 'cmp-both' : row.inA ? 'cmp-only-a' : 'cmp-only-b'
                 }>
-                  <td>{row.key}</td>
+                  <td>
+                    <span className="copy-cell">
+                      <span>{row.key}</span>
+                      <CopyBtn text={row.key} />
+                    </span>
+                  </td>
                   <td className="cmp-check">{row.inA ? '✓' : '—'}</td>
                   <td className="cmp-check">{row.inB ? '✓' : '—'}</td>
                 </tr>
@@ -167,6 +183,22 @@ export default function UserCompare() {
         <CompareSearchBox slot="User B" onSelect={setUserB} />
       </div>
 
+      {/* ── Identity bar ─────────────────────────────────────────────── */}
+      {ready && (
+        <div className="cmp-identity-bar">
+          <div className="cmp-identity cmp-identity-a">
+            <span className="cmp-identity-name">{userA.displayName}</span>
+            <span className="cmp-identity-user">{userA.username}</span>
+            <CopyBtn text={userA.username} />
+          </div>
+          <div className="cmp-identity cmp-identity-b">
+            <span className="cmp-identity-name">{userB.displayName}</span>
+            <span className="cmp-identity-user">{userB.username}</span>
+            <CopyBtn text={userB.username} />
+          </div>
+        </div>
+      )}
+
       {/* ── Placeholder ──────────────────────────────────────────────── */}
       {!ready && (
         <div className="lookup-placeholder">
@@ -177,9 +209,9 @@ export default function UserCompare() {
       {/* ── Comparison tables ─────────────────────────────────────────── */}
       {ready && (
         <div className="cmp-results">
-          <CompareSection title="Application Groups"  rows={groupRows} nameA={nameA} nameB={nameB} />
-          <CompareSection title="Roles"               rows={roleRows}  nameA={nameA} nameB={nameB} />
-          <CompareSection title="Allowed Operations"  rows={opRows}    nameA={nameA} nameB={nameB} />
+          <CompareSection title="Application Groups" rows={groupRows} nameA={nameA} nameB={nameB} />
+          <CompareSection title="Roles"              rows={roleRows}  nameA={nameA} nameB={nameB} />
+          <CompareSection title="Allowed Operations" rows={opRows}    nameA={nameA} nameB={nameB} />
         </div>
       )}
 

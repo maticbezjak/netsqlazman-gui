@@ -1,17 +1,67 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import UserGraph from './UserGraph'
+import CopyBtn from './CopyBtn'
+import { useUserSearch } from '../hooks/useUserSearch'
+import { exportCSV } from '../utils/csv'
 
 const EMPTY_RESULT = { groups: null, roles: null, operations: null, user: null, displayName: null, error: null }
 
+// ── Section table ─────────────────────────────────────────────────────────────
+
+function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol = false }) {
+  const cols = rows.length > 0 ? Object.keys(rows[0]) : []
+  return (
+    <div className="lookup-section">
+      <div className="lookup-section-header">
+        <span className="lookup-section-title">{title}</span>
+        <span className="lookup-badge">{rows.length}</span>
+        <div style={{ flex: 1 }} />
+        {rows.length > 0 && (
+          <button className="btn-export" onClick={() => exportCSV(rows, exportFilename)} title="Export to CSV">
+            ↓ CSV
+          </button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="lookup-empty">No {title.toLowerCase()} found for <strong>{displayName}</strong></div>
+      ) : (
+        <div className="lookup-table-wrap">
+          <table className="lookup-table">
+            <thead>
+              <tr>{cols.map((c) => <th key={c}>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i}>
+                  {cols.map((c, ci) => (
+                    <td key={c}>
+                      {copyFirstCol && ci === 0 ? (
+                        <span className="copy-cell">
+                          <span>{row[c] ?? '—'}</span>
+                          <CopyBtn text={String(row[c] ?? '')} />
+                        </span>
+                      ) : (row[c] ?? '—')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function UserLookup() {
-  const [query, setQuery]           = useState('')
-  const [suggestions, setSuggestions] = useState([])   // [{ usrname, Ime, Priimek }]
-  const [showDrop, setShowDrop]     = useState(false)
-  const [loading, setLoading]       = useState(false)
-  const [result, setResult]         = useState(EMPTY_RESULT)
-  const [showGraph, setShowGraph]   = useState(false)
-  const debounceRef = useRef(null)
-  const wrapRef     = useRef(null)
+  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, onQueryChange } = useUserSearch()
+  const [loading, setLoading]     = useState(false)
+  const [result, setResult]       = useState(EMPTY_RESULT)
+  const [showGraph, setShowGraph] = useState(false)
+  const wrapRef = useRef(null)
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -20,21 +70,6 @@ export default function UserLookup() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  // Debounced autocomplete
-  const onQueryChange = useCallback((val) => {
-    setQuery(val)
-    clearTimeout(debounceRef.current)
-    if (!val.trim()) { setSuggestions([]); setShowDrop(false); return }
-    debounceRef.current = setTimeout(async () => {
-      const res = await window.db.searchUsers(val.trim())
-      if (res.data) {
-        setSuggestions(res.data)
-        setShowDrop(res.data.length > 0)
-
-      }
-    }, 280)
   }, [])
 
   async function lookup(usrname, displayName) {
@@ -60,8 +95,8 @@ export default function UserLookup() {
     setResult({
       user: usrname,
       displayName: displayName || usrname,
-      groups: grpRes.data,
-      roles: roleRes.data,
+      groups:     grpRes.data,
+      roles:      roleRes.data,
       operations: opRes.data,
       error: null,
     })
@@ -70,7 +105,6 @@ export default function UserLookup() {
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && query.trim()) {
-      // If there's exactly one suggestion, use it; otherwise search by raw query
       if (suggestions.length === 1) {
         const s = suggestions[0]
         lookup(s.UserName, `${s.Ime} ${s.Priimek}`)
@@ -80,8 +114,6 @@ export default function UserLookup() {
     }
     if (e.key === 'Escape') setShowDrop(false)
   }
-
-  const cols = (rows) => rows.length > 0 ? Object.keys(rows[0]) : []
 
   return (
     <div className="user-lookup">
@@ -139,9 +171,17 @@ export default function UserLookup() {
       {result.user && !result.error && (
         <div className="lookup-results">
 
-          <div className="lookup-view-toggle">
-            <button className={`btn btn-sm ${!showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(false)}>Table</button>
-            <button className={`btn btn-sm ${ showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(true)}>Visualize</button>
+          {/* User identity bar */}
+          <div className="lookup-user-bar">
+            <div className="lookup-user-identity">
+              <span className="lookup-user-name">{result.displayName}</span>
+              <span className="lookup-user-id">{result.user}</span>
+              <CopyBtn text={result.user} />
+            </div>
+            <div className="lookup-view-toggle">
+              <button className={`btn btn-sm ${!showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(false)}>Table</button>
+              <button className={`btn btn-sm ${ showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(true)}>Visualize</button>
+            </div>
           </div>
 
           {showGraph && (
@@ -149,83 +189,25 @@ export default function UserLookup() {
           )}
 
           {!showGraph && (<>
-            {/* Groups */}
-            <div className="lookup-section">
-              <div className="lookup-section-header">
-                <span className="lookup-section-title">Application Groups</span>
-                <span className="lookup-badge">{result.groups.length}</span>
-              </div>
-              {result.groups.length === 0 ? (
-                <div className="lookup-empty">No groups found for <strong>{result.displayName}</strong></div>
-              ) : (
-                <div className="lookup-table-wrap">
-                  <table className="lookup-table">
-                    <thead>
-                      <tr>{cols(result.groups).map((c) => <th key={c}>{c}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {result.groups.map((row, i) => (
-                        <tr key={i}>
-                          {cols(result.groups).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Roles */}
-            <div className="lookup-section">
-              <div className="lookup-section-header">
-                <span className="lookup-section-title">Roles</span>
-                <span className="lookup-badge">{result.roles.length}</span>
-              </div>
-              {result.roles.length === 0 ? (
-                <div className="lookup-empty">No roles found for <strong>{result.displayName}</strong></div>
-              ) : (
-                <div className="lookup-table-wrap">
-                  <table className="lookup-table">
-                    <thead>
-                      <tr>{cols(result.roles).map((c) => <th key={c}>{c}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {result.roles.map((row, i) => (
-                        <tr key={i}>
-                          {cols(result.roles).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Operations */}
-            <div className="lookup-section">
-              <div className="lookup-section-header">
-                <span className="lookup-section-title">Allowed Operations</span>
-                <span className="lookup-badge">{result.operations.length}</span>
-              </div>
-              {result.operations.length === 0 ? (
-                <div className="lookup-empty">No operations found for <strong>{result.displayName}</strong></div>
-              ) : (
-                <div className="lookup-table-wrap">
-                  <table className="lookup-table">
-                    <thead>
-                      <tr>{cols(result.operations).map((c) => <th key={c}>{c}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {result.operations.map((row, i) => (
-                        <tr key={i}>
-                          {cols(result.operations).map((c) => <td key={c}>{row[c] ?? '—'}</td>)}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <LookupSection
+              title="Application Groups"
+              rows={result.groups}
+              displayName={result.displayName}
+              exportFilename={`${result.user}-groups.csv`}
+            />
+            <LookupSection
+              title="Roles"
+              rows={result.roles}
+              displayName={result.displayName}
+              exportFilename={`${result.user}-roles.csv`}
+            />
+            <LookupSection
+              title="Allowed Operations"
+              rows={result.operations}
+              displayName={result.displayName}
+              exportFilename={`${result.user}-operations.csv`}
+              copyFirstCol
+            />
           </>)}
 
         </div>

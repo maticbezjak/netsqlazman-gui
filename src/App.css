@@ -913,4 +913,56 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 [data-theme="dark"] .cmp-only-a      { background: rgba(99,102,241,0.12); }
 [data-theme="dark"] .cmp-only-a td:first-child { color: #a5b4fc; }
 [data-theme="dark"] .cmp-only-b      { background: rgba(245,158,11,0.10); }
+
+/* ── Copy button ───────────────────────────────────────────────────────────── */
+.copy-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); font-size: 11px;
+  cursor: pointer; line-height: 1; transition: all 0.12s; flex-shrink: 0;
+}
+.copy-btn:hover { background: var(--bg-hover); color: var(--accent); border-color: var(--accent); }
+
+/* Inline copy cell — text + button side by side */
+.copy-cell {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.copy-cell .copy-btn { opacity: 0; transition: opacity 0.12s; }
+tr:hover .copy-cell .copy-btn,
+.copy-cell .copy-btn:focus { opacity: 1; }
+
+/* ── Export button ─────────────────────────────────────────────────────────── */
+.btn-export {
+  padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--text-secondary); font-size: 11px;
+  font-weight: 600; cursor: pointer; transition: all 0.12s; white-space: nowrap;
+}
+.btn-export:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+/* ── Lookup user identity bar ──────────────────────────────────────────────── */
+.lookup-user-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-sm);
+}
+.lookup-user-identity { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lookup-user-name { font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.lookup-user-id   { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Compare identity bar ──────────────────────────────────────────────────── */
+.cmp-identity-bar {
+  display: flex; gap: 12px; padding: 10px 24px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cmp-identity {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+}
+.cmp-identity-a { border-left: 3px solid #6366f1; background: var(--accent-bg); }
+.cmp-identity-b { border-left: 3px solid #f59e0b; background: #fef3c733; }
+[data-theme="dark"] .cmp-identity-b { background: rgba(245,158,11,0.07); }
+.cmp-identity-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.cmp-identity-user { font-size: 11px; color: var(--text-muted); }
 [data-theme="dark"] .cmp-only-b td:first-child { color: #fcd34d; }
