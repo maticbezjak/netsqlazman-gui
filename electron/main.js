@@ -1,36 +1,59 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, safeStorage } = require('electron')
 const path = require('path')
 const fs   = require('fs')
 const sql  = require('mssql')
 const { autoUpdater } = require('electron-updater')
 
-// ── Saved connections ─────────────────────────────────────────────────────────
+// ── Saved connections (passwords encrypted at rest via safeStorage) ───────────
+
+const ENC_PREFIX = '__enc1__'
+
+function encryptPwd(pwd) {
+  if (!pwd) return ''
+  if (!safeStorage.isEncryptionAvailable()) return pwd
+  try { return ENC_PREFIX + safeStorage.encryptString(pwd).toString('base64') }
+  catch { return pwd }
+}
+
+function decryptPwd(stored) {
+  if (!stored || !stored.startsWith(ENC_PREFIX)) return stored || ''
+  if (!safeStorage.isEncryptionAvailable()) return ''
+  try { return safeStorage.decryptString(Buffer.from(stored.slice(ENC_PREFIX.length), 'base64')) }
+  catch { return '' }
+}
 
 function connectionsFile() {
   return path.join(app.getPath('userData'), 'connections.json')
 }
-function readConnections() {
+
+function readRaw() {
   try { return JSON.parse(fs.readFileSync(connectionsFile(), 'utf8')) } catch { return [] }
 }
-function writeConnections(list) {
+
+function readConnections() {
+  return readRaw().map((c) => ({ ...c, password: decryptPwd(c.password) }))
+}
+
+function writeRaw(list) {
   fs.writeFileSync(connectionsFile(), JSON.stringify(list, null, 2))
 }
 
 ipcMain.handle('connections:load', () => readConnections())
 
 ipcMain.handle('connections:save', (_, conn) => {
-  const list = readConnections()
-  const idx  = list.findIndex((c) => c.id === conn.id)
-  if (idx >= 0) list[idx] = conn
-  else { conn.id = Date.now().toString(); list.push(conn) }
-  writeConnections(list)
-  return list
+  const raw = readRaw()
+  const entry = { ...conn, password: encryptPwd(conn.password) }
+  const idx = raw.findIndex((c) => c.id === conn.id)
+  if (idx >= 0) raw[idx] = entry
+  else { entry.id = Date.now().toString(); raw.push(entry) }
+  writeRaw(raw)
+  return raw.map((c) => ({ ...c, password: decryptPwd(c.password) }))
 })
 
 ipcMain.handle('connections:delete', (_, id) => {
-  const list = readConnections().filter((c) => c.id !== id)
-  writeConnections(list)
-  return list
+  const raw = readRaw().filter((c) => c.id !== id)
+  writeRaw(raw)
+  return raw.map((c) => ({ ...c, password: decryptPwd(c.password) }))
 })
 
 let mainWindow
@@ -62,21 +85,18 @@ function createWindow() {
 function initAutoUpdater() {
   if (process.env.VITE_DEV_SERVER_URL) return  // skip in dev mode
 
-  autoUpdater.on('update-downloaded', () => {
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: 'A new version of NetSqlAzMan Manager has been downloaded.',
-      detail: 'Restart the application to apply the update.',
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0,
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall()
-    })
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('updater:update-available', info.version)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('updater:update-downloaded', info.version)
   })
 
   autoUpdater.checkForUpdatesAndNotify()
 }
+
+ipcMain.handle('updater:quitAndInstall', () => autoUpdater.quitAndInstall())
 
 app.whenReady().then(() => {
   createWindow()
@@ -121,6 +141,86 @@ ipcMain.handle('db:connect', async (_, config) => {
 ipcMain.handle('db:disconnect', async () => {
   await closePool()
   return { success: true }
+})
+
+ipcMain.handle('db:ping', async () => {
+  if (!currentPool) return { ok: false }
+  try {
+    await currentPool.request().query('SELECT 1')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+ipcMain.handle('db:getUserSidHex', async (_, username) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('username', sql.NVarChar, username)
+      .query(`SELECT TOP 1 CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
+              FROM dbo.netsqlazman_GetDBUsers(NULL, NULL, NULL, NULL)
+              WHERE DBUserName = @username`)
+    return { data: r.recordset[0]?.SidHex ?? null }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:globalSearch', async (_, query) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const q = `%${query}%`
+    const r = await currentPool.request()
+      .input('q', sql.NVarChar, q)
+      .query(`
+        SELECT 'Group' AS Type,
+               CAST(ag.ApplicationGroupId AS nvarchar) AS Id,
+               ag.Name, a.Name AS AppName, s.Name AS StoreName,
+               ag.ApplicationId, a.StoreId, NULL AS Extra
+        FROM netsqlazman_ApplicationGroupsTable ag
+        JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = ag.ApplicationId
+        JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+        WHERE ag.Name LIKE @q
+        UNION ALL
+        SELECT 'Item',
+               CAST(i.ItemId AS nvarchar),
+               i.Name, a.Name, s.Name,
+               i.ApplicationId, a.StoreId,
+               CAST(i.ItemType AS nvarchar) AS Extra
+        FROM netsqlazman_ItemsTable i
+        JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = i.ApplicationId
+        JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+        WHERE i.Name LIKE @q
+        UNION ALL
+        SELECT 'Application',
+               CAST(a.ApplicationId AS nvarchar),
+               a.Name, NULL, s.Name,
+               a.ApplicationId, a.StoreId, NULL
+        FROM netsqlazman_ApplicationsTable a
+        JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+        WHERE a.Name LIKE @q
+        ORDER BY Type, StoreName, AppName, Name
+      `)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAllApplicationGroups', async () => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request().query(`
+      SELECT ag.ApplicationGroupId, ag.Name, a.Name AS AppName, a.ApplicationId
+      FROM netsqlazman_ApplicationGroupsTable ag
+      JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = ag.ApplicationId
+      ORDER BY a.Name, ag.Name
+    `)
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
 })
 
 ipcMain.handle('db:listDatabases', async (_, { server, port, user, password }) => {

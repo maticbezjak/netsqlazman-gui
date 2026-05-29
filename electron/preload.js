@@ -52,4 +52,16 @@ contextBridge.exposeInMainWorld('db', {
   getAzmanGroupsForUser:    (username) => ipcRenderer.invoke('db:getAzmanGroupsForUser', username),
   getAzmanOperationsForUser:(username) => ipcRenderer.invoke('db:getAzmanOperationsForUser', username),
   getAzmanRolesForUser:     (username) => ipcRenderer.invoke('db:getAzmanRolesForUser', username),
+
+  // ── Health / search / bulk ─────────────────────────────────────────────────
+  ping:                 ()        => ipcRenderer.invoke('db:ping'),
+  getUserSidHex:        (username) => ipcRenderer.invoke('db:getUserSidHex', username),
+  globalSearch:         (query)    => ipcRenderer.invoke('db:globalSearch', query),
+  getAllApplicationGroups: ()      => ipcRenderer.invoke('db:getAllApplicationGroups'),
+})
+
+contextBridge.exposeInMainWorld('updater', {
+  onUpdateAvailable:  (cb) => ipcRenderer.on('updater:update-available',  (_, v) => cb(v)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('updater:update-downloaded', (_, v) => cb(v)),
+  quitAndInstall:     ()   => ipcRenderer.invoke('updater:quitAndInstall'),
 })

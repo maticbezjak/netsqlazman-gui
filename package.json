@@ -12,6 +12,8 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "build:renderer": "vite build",
     "build": "npm run build:renderer && electron-builder",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "make-icon": "node scripts/makeIcon.js",
     "start": "electron .",
     "serve": "node server/index.js",
@@ -28,14 +30,16 @@
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^4.1.7",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^33.3.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
     "png-to-ico": "^3.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^6.0.11",
+    "vitest": "^4.1.7",
     "wait-on": "^8.0.1"
   }
 }

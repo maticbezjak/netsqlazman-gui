@@ -2,11 +2,12 @@ import { useState } from 'react'
 import CopyBtn from './CopyBtn'
 import { useUserSearch } from '../hooks/useUserSearch'
 import { exportCSV } from '../utils/csv'
+import { compareSection } from '../utils/compare'
 
 // ── Reusable autocomplete search box ─────────────────────────────────────────
 
 function CompareSearchBox({ slot, onSelect }) {
-  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, onQueryChange } = useUserSearch()
+  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, activeIdx, onQueryChange, navigateDropdown, getActiveSuggestion } = useUserSearch()
   const [selected, setSelected] = useState(null)   // { username, displayName }
   const [loading, setLoading]   = useState(false)
 
@@ -32,9 +33,12 @@ function CompareSearchBox({ slot, onSelect }) {
   }
 
   function handleKeyDown(e) {
-    if (e.key === 'Enter' && suggestions.length === 1) {
-      const s = suggestions[0]
-      pick(s.UserName, `${s.Ime} ${s.Priimek}`)
+    if (e.key === 'ArrowDown') { e.preventDefault(); navigateDropdown('down'); return }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); navigateDropdown('up');   return }
+    if (e.key === 'Enter') {
+      const active = getActiveSuggestion()
+      if (active) pick(active.UserName, `${active.Ime} ${active.Priimek}`)
+      else if (suggestions.length === 1) { const s = suggestions[0]; pick(s.UserName, `${s.Ime} ${s.Priimek}`) }
     }
     if (e.key === 'Escape') setShowDrop(false)
   }
@@ -60,8 +64,8 @@ function CompareSearchBox({ slot, onSelect }) {
 
         {showDrop && suggestions.length > 0 && (
           <div className="cmp-dropdown">
-            {suggestions.map((s) => (
-              <div key={s.UserName} className="cmp-suggestion"
+            {suggestions.map((s, i) => (
+              <div key={s.UserName} className={`cmp-suggestion ${i === activeIdx ? 'active' : ''}`}
                 onMouseDown={(e) => { e.preventDefault(); pick(s.UserName, `${s.Ime} ${s.Priimek}`) }}>
                 <span className="cmp-sug-name">{s.Ime} {s.Priimek}</span>
                 <span className="cmp-sug-user">{s.UserName}</span>
@@ -74,25 +78,7 @@ function CompareSearchBox({ slot, onSelect }) {
   )
 }
 
-// ── Comparison logic ──────────────────────────────────────────────────────────
-
-function getRowKey(row) {
-  // Prefer well-known name columns; fall back to first column value.
-  const val = row.Name ?? row.GroupName ?? row.RoleName ?? row.OperationName
-    ?? row.ApplicationName ?? Object.values(row)[0]
-  return String(val ?? '')
-}
-
-function compareSection(aRows, bRows) {
-  const aMap = new Map((aRows || []).map((r) => [getRowKey(r), r]))
-  const bMap = new Map((bRows || []).map((r) => [getRowKey(r), r]))
-  const keys = new Set([...aMap.keys(), ...bMap.keys()])
-  return [...keys].sort((a, b) => a.localeCompare(b)).map((key) => ({
-    key,
-    inA: aMap.has(key),
-    inB: bMap.has(key),
-  }))
-}
+// compareSection and getRowKey live in src/utils/compare.js (also tested there)
 
 // ── Section table ─────────────────────────────────────────────────────────────
 

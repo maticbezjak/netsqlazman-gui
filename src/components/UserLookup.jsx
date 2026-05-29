@@ -3,6 +3,7 @@ import UserGraph from './UserGraph'
 import CopyBtn from './CopyBtn'
 import { useUserSearch } from '../hooks/useUserSearch'
 import { exportCSV } from '../utils/csv'
+import { useToast } from './Toast'
 
 const EMPTY_RESULT = { groups: null, roles: null, operations: null, user: null, displayName: null, error: null }
 
@@ -56,11 +57,94 @@ function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol 
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+// ── Bulk add to groups panel ──────────────────────────────────────────────────
+
+function BulkAddPanel({ username, onClose }) {
+  const [allGroups, setAllGroups]   = useState([])
+  const [selected, setSelected]     = useState(new Set())
+  const [adding, setAdding]         = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const { showToast } = useToast()
+
+  useEffect(() => {
+    window.db.getAllApplicationGroups().then((r) => {
+      setAllGroups(r.data || [])
+      setLoading(false)
+    })
+  }, [])
+
+  async function handleAdd() {
+    setAdding(true)
+    const sidRes = await window.db.getUserSidHex(username)
+    if (!sidRes.data) { showToast('Could not resolve user SID.', 'error'); setAdding(false); return }
+    const sidHex = sidRes.data
+    let ok = 0, fail = 0
+    for (const groupId of selected) {
+      const r = await window.db.addGroupMember({ groupId: Number(groupId), sidHex, whereDefined: 4, isMember: true })
+      r.success ? ok++ : fail++
+    }
+    setAdding(false)
+    showToast(`Added to ${ok} group(s).${fail ? ` ${fail} failed.` : ''}`, ok ? 'success' : 'error')
+    onClose()
+  }
+
+  const q = ''
+  // Group by AppName
+  const byApp = allGroups.reduce((acc, g) => {
+    ;(acc[g.AppName] = acc[g.AppName] || []).push(g)
+    return acc
+  }, {})
+
+  return (
+    <div className="bulk-add-panel">
+      <div className="bulk-add-header">
+        <span className="bulk-add-title">Add <strong>{username}</strong> to groups</span>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+      </div>
+      {loading ? (
+        <div className="bulk-add-loading">Loading groups…</div>
+      ) : (
+        <>
+          <div className="bulk-add-list">
+            {Object.entries(byApp).map(([appName, groups]) => (
+              <div key={appName}>
+                <div className="bulk-add-app-header">{appName}</div>
+                {groups.map((g) => (
+                  <label key={g.ApplicationGroupId} className="bulk-add-item">
+                    <input type="checkbox"
+                      checked={selected.has(String(g.ApplicationGroupId))}
+                      onChange={() => setSelected((s) => {
+                        const n = new Set(s)
+                        n.has(String(g.ApplicationGroupId)) ? n.delete(String(g.ApplicationGroupId)) : n.add(String(g.ApplicationGroupId))
+                        return n
+                      })}
+                    />
+                    <span>{g.Name}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="bulk-add-footer">
+            <span className="bulk-add-count">{selected.size} selected</span>
+            <button className="btn btn-primary btn-sm" onClick={handleAdd} disabled={adding || !selected.size}>
+              {adding ? 'Adding…' : `Add to ${selected.size} group${selected.size !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function UserLookup() {
-  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, onQueryChange } = useUserSearch()
-  const [loading, setLoading]     = useState(false)
-  const [result, setResult]       = useState(EMPTY_RESULT)
-  const [showGraph, setShowGraph] = useState(false)
+  const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, activeIdx, onQueryChange, navigateDropdown, getActiveSuggestion } = useUserSearch()
+  const [loading, setLoading]       = useState(false)
+  const [result, setResult]         = useState(EMPTY_RESULT)
+  const [showGraph, setShowGraph]   = useState(false)
+  const [showBulkAdd, setShowBulkAdd] = useState(false)
   const wrapRef = useRef(null)
 
   // Close dropdown on outside click
@@ -104,13 +188,13 @@ export default function UserLookup() {
   }
 
   function handleKeyDown(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); navigateDropdown('down'); return }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); navigateDropdown('up');   return }
     if (e.key === 'Enter' && query.trim()) {
-      if (suggestions.length === 1) {
-        const s = suggestions[0]
-        lookup(s.UserName, `${s.Ime} ${s.Priimek}`)
-      } else {
-        lookup(query.trim(), query.trim())
-      }
+      const active = getActiveSuggestion()
+      if (active) lookup(active.UserName, `${active.Ime} ${active.Priimek}`)
+      else if (suggestions.length === 1) { const s = suggestions[0]; lookup(s.UserName, `${s.Ime} ${s.Priimek}`) }
+      else lookup(query.trim(), query.trim())
     }
     if (e.key === 'Escape') setShowDrop(false)
   }
@@ -133,10 +217,10 @@ export default function UserLookup() {
             />
             {showDrop && suggestions.length > 0 && (
               <div className="lookup-dropdown">
-                {suggestions.map((s) => (
+                {suggestions.map((s, i) => (
                   <div
                     key={s.UserName}
-                    className="lookup-suggestion"
+                    className={`lookup-suggestion ${i === activeIdx ? 'active' : ''}`}
                     onClick={() => lookup(s.UserName, `${s.Ime} ${s.Priimek}`)}
                   >
                     <span className="suggestion-name">{s.Ime} {s.Priimek}</span>
@@ -178,11 +262,21 @@ export default function UserLookup() {
               <span className="lookup-user-id">{result.user}</span>
               <CopyBtn text={result.user} />
             </div>
+            {window.db?.getAllApplicationGroups && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowBulkAdd((v) => !v)}
+                title="Add this user to one or more groups">
+                ⊕ Add to groups
+              </button>
+            )}
             <div className="lookup-view-toggle">
               <button className={`btn btn-sm ${!showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(false)}>Table</button>
               <button className={`btn btn-sm ${ showGraph ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setShowGraph(true)}>Visualize</button>
             </div>
           </div>
+
+          {showBulkAdd && (
+            <BulkAddPanel username={result.user} onClose={() => setShowBulkAdd(false)} />
+          )}
 
           {showGraph && (
             <UserGraph user={result.user} groups={result.groups} roles={result.roles} operations={result.operations} />

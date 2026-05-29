@@ -29,8 +29,9 @@ export default function HelpModal({ onClose }) {
             <a href="#h-defs">5. Item Definitions</a>
             <a href="#h-auths">6. Item Authorizations</a>
             <a href="#h-lookup">7. User Lookup</a>
-            <a href="#h-ui">8. Interface Features</a>
-            <a href="#h-shortcuts">9. Keyboard Shortcuts</a>
+            <a href="#h-compare">8. Compare Users</a>
+            <a href="#h-ui">9. Interface Features</a>
+            <a href="#h-shortcuts">10. Keyboard Shortcuts</a>
           </nav>
 
           <div className="help-content">
@@ -48,6 +49,7 @@ export default function HelpModal({ onClose }) {
                 <li>Assign <strong>authorizations</strong> (Allow / Deny / Delegate) to principals</li>
                 <li>Look up any employee to see their <strong>groups, roles, and allowed operations</strong></li>
                 <li>Visualize access relationships as an <strong>interactive force graph</strong></li>
+                <li><strong>Compare two users'</strong> permissions side-by-side</li>
               </ul>
             </section>
 
@@ -242,7 +244,7 @@ export default function HelpModal({ onClose }) {
               <h3>Searching</h3>
               <ol>
                 <li>Type a <strong>first name, surname, or username</strong> — suggestions appear after a short delay.</li>
-                <li>Click a suggestion, or press <kbd>Enter</kbd> when one result is shown.</li>
+                <li>Use <kbd>↑</kbd> / <kbd>↓</kbd> to navigate suggestions, then <kbd>Enter</kbd> to select. Or click a suggestion directly.</li>
               </ol>
 
               <h3>Table View</h3>
@@ -254,6 +256,11 @@ export default function HelpModal({ onClose }) {
                   <tr><td><strong>Allowed Operations</strong></td><td>All operations the user is permitted to perform</td></tr>
                 </tbody>
               </table>
+              <p>
+                Each section shows a count badge and a <strong>↓ CSV</strong> button to export that section to a
+                spreadsheet-ready file. Hover any row in Allowed Operations to reveal a <strong>⎘</strong> copy
+                button for the operation name. The user's username also has a copy button in the identity bar.
+              </p>
 
               <h3>Graph Visualization</h3>
               <p>Click <strong>Visualize</strong> to switch to an interactive force-directed graph.</p>
@@ -273,24 +280,57 @@ export default function HelpModal({ onClose }) {
               </p>
             </section>
 
-            {/* 8 ── Interface Features ────────────────────────────────── */}
+            {/* 8 ── Compare Users ─────────────────────────────────────── */}
+            <section id="h-compare">
+              <h2>8. Compare Users</h2>
+              <p>
+                Click <strong>Compare Users</strong> in the tab bar to place two users side-by-side and see exactly
+                where their permissions differ.
+              </p>
+
+              <h3>Selecting Users</h3>
+              <p>
+                Each search box works like User Lookup — type to get suggestions, use <kbd>↑</kbd> / <kbd>↓</kbd>
+                to navigate, <kbd>Enter</kbd> to select. Once both users are chosen the comparison loads automatically.
+              </p>
+
+              <h3>Reading the Comparison</h3>
+              <p>Three sections are shown: <em>Application Groups</em>, <em>Roles</em>, and <em>Allowed Operations</em>.</p>
+              <table className="help-table">
+                <thead><tr><th>Row colour</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td>White</td><td>Both users share this permission</td></tr>
+                  <tr><td>Indigo</td><td>Only User A has this permission</td></tr>
+                  <tr><td>Amber</td><td>Only User B has this permission</td></tr>
+                </tbody>
+              </table>
+              <p>
+                Each section header shows badge counts for <em>shared</em>, <em>only A</em>, and <em>only B</em> entries.
+                Click <strong>↓ CSV</strong> to export any section. Hover a row to copy its name with <strong>⎘</strong>.
+              </p>
+            </section>
+
+            {/* 9 ── Interface Features ────────────────────────────────── */}
             <section id="h-ui">
-              <h2>8. Interface Features</h2>
+              <h2>9. Interface Features</h2>
               <ul>
                 <li><strong>Light / Dark theme:</strong> click the ☀️ / 🌙 button in the top-right corner. Preference is remembered.</li>
                 <li><strong>Sortable tables:</strong> click any column header to sort ascending; click again for descending.</li>
                 <li><strong>Resizable sidebar:</strong> drag the divider between the sidebar and the main panel.</li>
-                <li><strong>Auto-update (desktop):</strong> the app checks for updates on startup and prompts to restart when a new version is available.</li>
+                <li><strong>CSV export:</strong> every result section in User Lookup and Compare Users has a <strong>↓ CSV</strong> button. Files are UTF-8 with BOM so Excel opens diacritics correctly.</li>
+                <li><strong>Clipboard copy:</strong> hover any row in Allowed Operations or Compare tables to reveal a <strong>⎘</strong> copy button. Usernames also have a copy button in the identity bar.</li>
+                <li><strong>Auto-update (desktop):</strong> the app checks for updates on startup. A banner appears when a download is in progress or ready — click <em>Restart now</em> to apply immediately.</li>
               </ul>
             </section>
 
-            {/* 9 ── Keyboard Shortcuts ────────────────────────────────── */}
+            {/* 10 ── Keyboard Shortcuts ───────────────────────────────── */}
             <section id="h-shortcuts">
-              <h2>9. Keyboard Shortcuts</h2>
+              <h2>10. Keyboard Shortcuts</h2>
               <table className="help-table">
                 <thead><tr><th>Key</th><th>Action</th></tr></thead>
                 <tbody>
-                  <tr><td><kbd>Enter</kbd></td><td>Submit connection form / confirm inline edit / search</td></tr>
+                  <tr><td><kbd>Enter</kbd></td><td>Submit connection form / confirm inline edit / select search result</td></tr>
+                  <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Navigate autocomplete suggestions in search dropdowns</td></tr>
                   <tr><td><kbd>Escape</kbd></td><td>Cancel edit, close dropdowns, close this help window</td></tr>
                 </tbody>
               </table>

@@ -24,6 +24,10 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
   const [addIsMember, setAddIsMember] = useState(true)
   const [adding, setAdding]           = useState(false)
 
+  const [cloneMode, setCloneMode] = useState(false)
+  const [cloneName, setCloneName] = useState('')
+  const [cloning, setCloning]     = useState(false)
+
   const confirm = useConfirm()
   const toast   = useToast()
   const { sorted: sortedMembers, sort, toggleSort } = useSorted(members, 'MemberName')
@@ -31,6 +35,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
   useEffect(() => {
     setGroup(initialGroup)
     setEditing(false)
+    setCloneMode(false)
     setSelected(new Set())
     load()
   }, [initialGroup.ApplicationGroupId])
@@ -63,9 +68,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
     if (!editName.trim()) return
     setSaving(true)
     const r = await window.db.updateApplicationGroup({
-      groupId:     group.ApplicationGroupId,
-      name:        editName.trim(),
-      description: editDesc.trim(),
+      groupId: group.ApplicationGroupId, name: editName.trim(), description: editDesc.trim(),
     })
     setSaving(false)
     if (r.success) {
@@ -85,11 +88,36 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
     )
     if (!ok) return
     const r = await window.db.deleteApplicationGroup(group.ApplicationGroupId)
-    if (r.success) {
-      onDeleted?.()
-      toast.success(`Group "${group.Name}" deleted`)
-    } else {
-      toast.error(r.error || 'Failed to delete group')
+    if (r.success) { onDeleted?.(); toast.success(`Group "${group.Name}" deleted`) }
+    else toast.error(r.error || 'Failed to delete group')
+  }
+
+  async function handleClone() {
+    if (!cloneName.trim()) return
+    setCloning(true)
+    try {
+      const res = await window.db.createApplicationGroup({
+        applicationId,
+        name:        cloneName.trim(),
+        description: group.Description ? `${group.Description} (clone)` : '',
+      })
+      if (res.error) throw new Error(res.error)
+      const newGroupId = res.data?.ApplicationGroupId
+      let failed = 0
+      for (const m of members) {
+        const r = await window.db.addGroupMember({
+          groupId: newGroupId, sidHex: m.SidHex,
+          whereDefined: m.WhereDefined, isMember: m.IsMember,
+        })
+        if (!r.success) failed++
+      }
+      onGroupsChanged?.(applicationId)
+      setCloneMode(false); setCloneName('')
+      toast.success(`Cloned → "${cloneName.trim()}" with ${members.length - failed} member(s).`)
+    } catch (err) {
+      toast.error('Clone failed: ' + err.message)
+    } finally {
+      setCloning(false)
     }
   }
 
@@ -117,14 +145,11 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
       const r = await window.db.addGroupMember({
         groupId: group.ApplicationGroupId, sidHex, whereDefined, isMember: addIsMember,
       })
-      if (!r.success) errors.push(sidHex + ': ' + r.error)
+      if (!r.success) errors.push(r.error)
     }
     setAdding(false)
-    if (errors.length) {
-      toast.error(`${errors.length} member(s) could not be added`)
-    } else {
-      toast.success(`${selected.size} member(s) added`)
-    }
+    if (errors.length) toast.error(`${errors.length} member(s) could not be added`)
+    else               toast.success(`${selected.size} member(s) added`)
     setSelected(new Set())
     load()
   }
@@ -159,10 +184,10 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
   const pickerItems = [
     ...allGroups
       .filter((g) => !existingSids.has(g.SidHex) && g.ApplicationGroupId !== group.ApplicationGroupId)
-      .map((g) => ({ value: `1:${g.SidHex}`, label: g.Name,       icon: <IconUsers />, group: 'Application Groups' })),
+      .map((g) => ({ value: `1:${g.SidHex}`, label: g.Name, icon: <IconUsers />, group: 'Application Groups' })),
     ...dbUsers
       .filter((u) => !existingSids.has(u.SidHex))
-      .map((u) => ({ value: `4:${u.SidHex}`, label: u.FullName ? `${u.FullName} (${u.DBUserName})` : u.DBUserName, icon: <IconUser />,  group: 'Database Users' })),
+      .map((u) => ({ value: `4:${u.SidHex}`, label: u.FullName ? `${u.FullName} (${u.DBUserName})` : u.DBUserName, icon: <IconUser />, group: 'Database Users' })),
   ]
 
   if (loading) return <SkeletonPanel />
@@ -195,6 +220,7 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
               {nonMemberCount > 0 ? `, ${nonMemberCount} non-member${nonMemberCount !== 1 ? 's' : ''}` : ''}
             </span>
             <button className="btn btn-ghost btn-sm" onClick={startEdit}>Edit</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setCloneMode(true); setCloneName(`${group.Name} (copy)`) }}>Clone</button>
             <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete Group</button>
           </>
         )}
@@ -202,27 +228,35 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
         <button className="btn btn-ghost btn-sm icon-btn" onClick={load} title="Refresh"><IconRefresh /></button>
       </div>
 
+      {cloneMode && (
+        <div className="clone-row">
+          <span className="clone-label">Clone as:</span>
+          <input
+            className="edit-name-input"
+            value={cloneName}
+            onChange={(e) => setCloneName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleClone(); if (e.key === 'Escape') setCloneMode(false) }}
+            autoFocus
+          />
+          <button className="btn btn-primary btn-sm" onClick={handleClone} disabled={cloning || !cloneName.trim()}>
+            {cloning ? 'Cloning…' : 'Clone'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setCloneMode(false)}>Cancel</button>
+        </div>
+      )}
+
       {editing && (
         <div className="edit-desc-row">
-          <textarea
-            className="edit-desc-textarea"
-            placeholder="Description…"
-            value={editDesc}
-            onChange={(e) => setEditDesc(e.target.value)}
-            rows={2}
-          />
+          <textarea className="edit-desc-textarea" placeholder="Description…" value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)} rows={2} />
         </div>
       )}
       {!editing && group.Description && <p className="panel-desc">{group.Description}</p>}
 
       <div className="group-split">
-        {/* ── Left: principal picker ──────────────────────────────── */}
         <div className="group-split-picker">
           <MultiPicker
-            items={pickerItems}
-            selected={selected}
-            onToggle={toggle}
-            onToggleAll={toggleAll}
+            items={pickerItems} selected={selected} onToggle={toggle} onToggleAll={toggleAll}
             placeholder="Search principals…"
             footer={
               <>
@@ -240,7 +274,6 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
           />
         </div>
 
-        {/* ── Right: members table ────────────────────────────────── */}
         <div className="group-split-table">
           {!members.length ? (
             <div className="empty-table">No members defined for this group.</div>
@@ -258,23 +291,16 @@ export default function AppGroupPanel({ group: initialGroup, applicationId, onGr
               <tbody>
                 {sortedMembers.map((m) => (
                   <tr key={m.ApplicationGroupMemberId}>
-                    <td className="name-cell">
-                      {m.WhereDefined === 1 ? <IconUsers /> : <IconUser />} {m.MemberName || m.SidHex}
-                    </td>
+                    <td className="name-cell">{m.WhereDefined === 1 ? <IconUsers /> : <IconUser />} {m.MemberName || m.SidHex}</td>
                     <td>{m.WhereDefinedLabel}</td>
                     <td>
-                      <button
-                        className={`member-badge ${m.IsMember ? 'member' : 'non-member'} member-toggle`}
-                        onClick={() => handleToggle(m)}
-                        title="Click to toggle"
-                      >
+                      <button className={`member-badge ${m.IsMember ? 'member' : 'non-member'} member-toggle`}
+                        onClick={() => handleToggle(m)} title="Click to toggle">
                         {m.IsMember ? 'Member' : 'Non Member'}
                       </button>
                     </td>
                     <td><SidCell hex={m.SidHex} /></td>
-                    <td>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m)}>Remove</button>
-                    </td>
+                    <td><button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m)}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>

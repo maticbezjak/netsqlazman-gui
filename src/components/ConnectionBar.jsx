@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { IconCheck, IconFolderOpen, IconChevDown, IconSun, IconMoon } from './Icon'
+import { useToast } from './Toast'
+import { encryptConnections, decryptConnections, isEncryptedExport } from '../utils/crypto'
 
 const EMPTY = { server: '', port: '1433', user: '', password: '', database: '' }
 
@@ -15,6 +17,15 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
   const [saving, setSaving]               = useState(false)
   const [savedFlash, setSavedFlash]       = useState(false)  // brief "Saved!" confirmation
   const dropdownRef = useRef(null)
+  const importRef   = useRef(null)
+  const { showToast } = useToast()
+
+  // ── Export / import passphrase UI state ───────────────────────────────────
+  const [ioMode, setIoMode]                 = useState(null)   // null | 'export' | 'import-pass'
+  const [ioPassphrase, setIoPassphrase]     = useState('')
+  const [ioConfirm, setIoConfirm]           = useState('')
+  const [ioWorking, setIoWorking]           = useState(false)
+  const [pendingImport, setPendingImport]   = useState(null)   // parsed encrypted payload
 
   // ── Database picker ────────────────────────────────────────────────────────
   const [dbList, setDbList]         = useState([])
@@ -123,6 +134,83 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     setSaved(list)
   }
 
+  // ── Secure export / import ─────────────────────────────────────────────────
+
+  async function doExport() {
+    if (!ioPassphrase || ioPassphrase !== ioConfirm) return
+    setIoWorking(true)
+    try {
+      const payload = await encryptConnections(
+        saved.map(({ id, ...rest }) => rest),   // strip internal IDs
+        ioPassphrase
+      )
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = 'netsqlazman-connections.json'; a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setIoMode(null); setIoPassphrase(''); setIoConfirm('')
+      showToast('Connections exported (AES-256 encrypted).', 'success')
+    } catch (err) {
+      showToast('Export failed: ' + err.message, 'error')
+    } finally {
+      setIoWorking(false)
+    }
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    let parsed
+    try { parsed = JSON.parse(await file.text()) }
+    catch { showToast('Invalid JSON file.', 'error'); return }
+
+    if (isEncryptedExport(parsed)) {
+      setPendingImport(parsed)
+      setIoPassphrase('')
+      setIoMode('import-pass')
+      return
+    }
+    showToast('File is not a valid encrypted export.', 'error')
+  }
+
+  async function doImport() {
+    if (!pendingImport || !ioPassphrase) return
+    setIoWorking(true)
+    try {
+      const connections = await decryptConnections(pendingImport, ioPassphrase)
+      if (!Array.isArray(connections)) throw new Error('Unexpected format after decryption')
+
+      let list = await window.connections.load()
+      let added = 0, skipped = 0
+      for (const conn of connections) {
+        if (!conn.name || !conn.server) { skipped++; continue }
+        list = await window.connections.save({
+          name:     String(conn.name),
+          server:   String(conn.server),
+          port:     String(conn.port     || '1433'),
+          user:     String(conn.user     || ''),
+          password: String(conn.password || ''),
+          database: String(conn.database || ''),
+        })
+        added++
+      }
+      setSaved(list)
+      setIoMode(null); setIoPassphrase(''); setPendingImport(null)
+      showToast(
+        `Imported ${added} connection${added !== 1 ? 's' : ''}${skipped ? ` (${skipped} skipped)` : ''}.`,
+        added ? 'success' : 'error'
+      )
+    } catch (err) {
+      const msg = err.name === 'OperationError' ? 'Wrong passphrase.' : err.message
+      showToast('Import failed: ' + msg, 'error')
+    } finally {
+      setIoWorking(false)
+    }
+  }
+
   async function handleConnectAndSave(conn) {
     applyConnection(conn)
     // slight delay so config state settles before connect
@@ -193,6 +281,85 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
                     >
                       💾 Save current form as…
                     </button>
+                  )}
+
+                  {/* ── Export / Import ─────────────────── */}
+                  <input
+                    ref={importRef}
+                    type="file"
+                    accept=".json,application/json"
+                    style={{ display: 'none' }}
+                    onChange={handleImportFile}
+                  />
+
+                  {ioMode === 'export' && (
+                    <div className="saved-io-form">
+                      <div className="saved-io-label">🔒 Set export passphrase</div>
+                      <input
+                        className="save-name-input"
+                        type="password"
+                        placeholder="Passphrase…"
+                        value={ioPassphrase}
+                        onChange={(e) => setIoPassphrase(e.target.value)}
+                        autoFocus
+                      />
+                      <input
+                        className="save-name-input"
+                        type="password"
+                        placeholder="Confirm passphrase…"
+                        value={ioConfirm}
+                        onChange={(e) => setIoConfirm(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') doExport(); if (e.key === 'Escape') setIoMode(null) }}
+                      />
+                      {ioPassphrase && ioConfirm && ioPassphrase !== ioConfirm && (
+                        <div className="saved-io-error">Passphrases don't match</div>
+                      )}
+                      <div className="save-row">
+                        <button className="btn btn-primary btn-sm" onClick={doExport}
+                          disabled={!ioPassphrase || ioPassphrase !== ioConfirm || ioWorking}>
+                          {ioWorking ? 'Encrypting…' : 'Download'}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => { setIoMode(null); setIoPassphrase(''); setIoConfirm('') }}>✕</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {ioMode === 'import-pass' && (
+                    <div className="saved-io-form">
+                      <div className="saved-io-label">🔒 Enter import passphrase</div>
+                      <input
+                        className="save-name-input"
+                        type="password"
+                        placeholder="Passphrase…"
+                        value={ioPassphrase}
+                        onChange={(e) => setIoPassphrase(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') doImport(); if (e.key === 'Escape') { setIoMode(null); setPendingImport(null) } }}
+                        autoFocus
+                      />
+                      <div className="save-row">
+                        <button className="btn btn-primary btn-sm" onClick={doImport}
+                          disabled={!ioPassphrase || ioWorking}>
+                          {ioWorking ? 'Decrypting…' : 'Import'}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => { setIoMode(null); setPendingImport(null); setIoPassphrase('') }}>✕</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!ioMode && (
+                    <div className="saved-io-row">
+                      <button className="btn btn-ghost btn-sm saved-io-btn"
+                        onClick={() => importRef.current?.click()}
+                        title="Import encrypted connections file">
+                        📥 Import
+                      </button>
+                      <button className="btn btn-ghost btn-sm saved-io-btn"
+                        onClick={() => { setIoMode('export'); setIoPassphrase(''); setIoConfirm('') }}
+                        disabled={saved.length === 0}
+                        title="Export connections (AES-256 encrypted)">
+                        📤 Export
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

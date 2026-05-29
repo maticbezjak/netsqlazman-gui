@@ -294,8 +294,13 @@ html, body, #root { height: 100%; font-family: -apple-system, BlinkMacSystemFont
 }
 .saved-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
 
-.saved-footer { border-top: 1px solid var(--border); padding: 8px 10px; background: var(--bg-raised); }
+.saved-footer { border-top: 1px solid var(--border); padding: 8px 10px; background: var(--bg-raised); display: flex; flex-direction: column; gap: 4px; }
 .save-current-btn { width: 100%; justify-content: center; font-size: 12px; }
+.saved-io-row { display: flex; gap: 4px; padding-top: 4px; border-top: 1px solid var(--border-muted); }
+.saved-io-btn { flex: 1; justify-content: center; font-size: 11px; }
+.saved-io-form { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border-muted); }
+.saved-io-label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.saved-io-error { font-size: 11px; color: var(--color-error); }
 .save-row { display: flex; gap: 6px; align-items: center; }
 .save-name-input {
   flex: 1; background: var(--bg-raised); border: 1px solid var(--border); color: var(--text-body);
@@ -966,3 +971,154 @@ tr:hover .copy-cell .copy-btn,
 .cmp-identity-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .cmp-identity-user { font-size: 11px; color: var(--text-muted); }
 [data-theme="dark"] .cmp-only-b td:first-child { color: #fcd34d; }
+
+/* ── Active suggestion highlight (keyboard navigation) ─────────────────────── */
+.lookup-suggestion.active,
+.cmp-suggestion.active {
+  background: var(--accent-bg);
+}
+.lookup-suggestion.active .suggestion-name,
+.cmp-suggestion.active .cmp-sug-name {
+  color: var(--accent);
+}
+
+/* ── Update banner ─────────────────────────────────────────────────────────── */
+.update-banner {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 6px 16px; font-size: 12px; font-weight: 500;
+  flex-shrink: 0;
+}
+.update-banner-downloading {
+  background: #fef3c7; color: #92400e;
+}
+.update-banner-ready {
+  background: #dcfce7; color: #15803d;
+}
+[data-theme="dark"] .update-banner-downloading { background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .update-banner-ready       { background: #14532d; color: #86efac; }
+.update-banner-btn {
+  padding: 2px 10px; border-radius: 4px; border: 1px solid currentColor;
+  background: transparent; color: inherit; font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.12s;
+}
+.update-banner-btn:hover { opacity: 0.75; }
+
+/* ── Connection lost banner ────────────────────────────────────────────────── */
+.conn-lost-banner {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 7px 16px; font-size: 12px; font-weight: 600;
+  background: #fee2e2; color: #991b1b; flex-shrink: 0;
+}
+[data-theme="dark"] .conn-lost-banner { background: #450a0a; color: #fca5a5; }
+.conn-lost-btn {
+  padding: 2px 12px; border-radius: 4px; border: 1px solid currentColor;
+  background: transparent; color: inherit; font-size: 11px; font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Tab bar search button ─────────────────────────────────────────────────── */
+.tab-search-btn {
+  margin-left: auto; padding: 4px 10px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted);
+  font-size: 13px; cursor: pointer; transition: all 0.12s;
+}
+.tab-search-btn:hover { background: var(--bg-hover); color: var(--accent); border-color: var(--accent); }
+
+/* ── Global search modal ───────────────────────────────────────────────────── */
+.gsearch-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.45); display: flex; align-items: flex-start;
+  justify-content: center; padding-top: 80px;
+}
+.gsearch-modal {
+  width: 600px; max-width: 90vw; max-height: 70vh;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow-modal);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.gsearch-input-row {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.gsearch-icon { font-size: 16px; flex-shrink: 0; }
+.gsearch-input {
+  flex: 1; border: none; outline: none; font-size: 15px;
+  background: transparent; color: var(--text-primary);
+}
+.gsearch-spinner { font-size: 14px; color: var(--text-muted); }
+.gsearch-esc {
+  padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border);
+  font-size: 11px; color: var(--text-muted); cursor: pointer;
+  background: var(--bg-raised); font-family: inherit;
+}
+.gsearch-results { overflow-y: auto; flex: 1; padding: 8px 0; }
+.gsearch-group-header {
+  padding: 6px 16px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted); background: var(--bg-raised);
+}
+.gsearch-result {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding: 8px 16px; cursor: pointer; transition: background 0.1s;
+}
+.gsearch-result:hover, .gsearch-result.active { background: var(--bg-hover); }
+.gsearch-result-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.gsearch-result-path { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.gsearch-empty, .gsearch-hint {
+  padding: 24px 16px; font-size: 13px; color: var(--text-muted); text-align: center;
+}
+
+/* ── Error boundary ────────────────────────────────────────────────────────── */
+.error-boundary {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; gap: 12px; padding: 40px; text-align: center;
+}
+.error-boundary-icon { font-size: 40px; }
+.error-boundary-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.error-boundary-msg { font-size: 13px; color: var(--color-error); max-width: 480px; }
+.error-boundary-stack {
+  font-size: 11px; color: var(--text-muted); text-align: left;
+  max-width: 600px; max-height: 160px; overflow: auto;
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px;
+}
+.error-boundary-stack summary { cursor: pointer; margin-bottom: 4px; }
+
+/* ── Clone group row ───────────────────────────────────────────────────────── */
+.clone-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+}
+.clone-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Bulk add to groups panel ──────────────────────────────────────────────── */
+.bulk-add-panel {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.bulk-add-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: var(--bg-raised); border-bottom: 1px solid var(--border);
+}
+.bulk-add-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.bulk-add-loading { padding: 20px; color: var(--text-muted); font-size: 13px; }
+.bulk-add-list {
+  max-height: 220px; overflow-y: auto; padding: 6px 0;
+}
+.bulk-add-app-header {
+  padding: 4px 16px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); background: var(--bg-raised);
+}
+.bulk-add-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 16px; cursor: pointer; font-size: 13px; color: var(--text-body);
+  transition: background 0.1s;
+}
+.bulk-add-item:hover { background: var(--bg-hover); }
+.bulk-add-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; border-top: 1px solid var(--border); background: var(--bg-raised);
+}
+.bulk-add-count { font-size: 12px; color: var(--text-muted); }

@@ -366,6 +366,61 @@ app.get('/api/db/azman/user/:username/operations', wrap(async (req) => {
   return { data: r.recordset }
 }))
 
+// ── Global search ─────────────────────────────────────────────────────────────
+app.get('/api/db/search', wrap(async (req) => {
+  const p = await getPool()
+  const q = `%${req.query.q || ''}%`
+  const r = await p.request()
+    .input('q', sql.NVarChar, q)
+    .query(`
+      SELECT 'Group' AS Type,
+             CAST(ag.ApplicationGroupId AS nvarchar) AS Id,
+             ag.Name, a.Name AS AppName, s.Name AS StoreName,
+             ag.ApplicationId, a.StoreId, NULL AS Extra
+      FROM netsqlazman_ApplicationGroupsTable ag
+      JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = ag.ApplicationId
+      JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+      WHERE ag.Name LIKE @q
+      UNION ALL
+      SELECT 'Item', CAST(i.ItemId AS nvarchar), i.Name, a.Name, s.Name,
+             i.ApplicationId, a.StoreId, CAST(i.ItemType AS nvarchar)
+      FROM netsqlazman_ItemsTable i
+      JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = i.ApplicationId
+      JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+      WHERE i.Name LIKE @q
+      UNION ALL
+      SELECT 'Application', CAST(a.ApplicationId AS nvarchar), a.Name, NULL, s.Name,
+             a.ApplicationId, a.StoreId, NULL
+      FROM netsqlazman_ApplicationsTable a
+      JOIN netsqlazman_StoresTable s ON s.StoreId = a.StoreId
+      WHERE a.Name LIKE @q
+      ORDER BY Type, StoreName, AppName, Name
+    `)
+  return { data: r.recordset }
+}))
+
+// ── Bulk user ops ─────────────────────────────────────────────────────────────
+app.get('/api/db/user/:username/sidhex', wrap(async (req) => {
+  const p = await getPool()
+  const r = await p.request()
+    .input('username', sql.NVarChar, req.params.username)
+    .query(`SELECT TOP 1 CONVERT(nvarchar(128), DBUserSid, 1) AS SidHex
+            FROM dbo.netsqlazman_GetDBUsers(NULL, NULL, NULL, NULL)
+            WHERE DBUserName = @username`)
+  return { data: r.recordset[0]?.SidHex ?? null }
+}))
+
+app.get('/api/db/all-application-groups', wrap(async () => {
+  const p = await getPool()
+  const r = await p.request().query(`
+    SELECT ag.ApplicationGroupId, ag.Name, a.Name AS AppName, a.ApplicationId
+    FROM netsqlazman_ApplicationGroupsTable ag
+    JOIN netsqlazman_ApplicationsTable a ON a.ApplicationId = ag.ApplicationId
+    ORDER BY a.Name, ag.Name
+  `)
+  return { data: r.recordset }
+}))
+
 // ── Serve React frontend ──────────────────────────────────────────────────────
 const distPath = path.join(__dirname, '../dist')
 app.use(express.static(distPath))
