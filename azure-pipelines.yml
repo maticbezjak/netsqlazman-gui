@@ -59,10 +59,6 @@ stages:
         Write-Host "Building version: $version"
       displayName: 'Set build version'
 
-    # ── AzureSignTool — signs via Key Vault API, no PFX export needed ─────
-    - script: dotnet tool install --global AzureSignTool
-      displayName: 'Install AzureSignTool'
-
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
