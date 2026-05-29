@@ -22,6 +22,7 @@ extraMetadata:
 
 win:
   sign: scripts/windowsSign.js
+  artifactName: "NetSqlAzMan.Manager.Setup.${version}.${ext}"
   target:
     - target: nsis
       arch:
