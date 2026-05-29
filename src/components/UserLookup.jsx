@@ -9,13 +9,15 @@ const EMPTY_RESULT = { groups: null, roles: null, operations: null, user: null, 
 
 // ── Section table ─────────────────────────────────────────────────────────────
 
-function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol = false }) {
-  const cols = rows.length > 0 ? Object.keys(rows[0]) : []
+function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol = false, filter = '' }) {
+  const norm     = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const filtered = filter ? rows.filter((r) => Object.values(r).some((v) => norm(String(v ?? '')).includes(norm(filter)))) : rows
+  const cols     = filtered.length > 0 ? Object.keys(filtered[0]) : (rows.length > 0 ? Object.keys(rows[0]) : [])
   return (
     <div className="lookup-section">
       <div className="lookup-section-header">
         <span className="lookup-section-title">{title}</span>
-        <span className="lookup-badge">{rows.length}</span>
+        <span className="lookup-badge">{filter ? `${filtered.length}/${rows.length}` : rows.length}</span>
         <div style={{ flex: 1 }} />
         {rows.length > 0 && (
           <button className="btn-export" onClick={() => exportCSV(rows, exportFilename)} title="Export to CSV">
@@ -26,6 +28,8 @@ function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol 
 
       {rows.length === 0 ? (
         <div className="lookup-empty">No {title.toLowerCase()} found for <strong>{displayName}</strong></div>
+      ) : filtered.length === 0 ? (
+        <div className="lookup-empty">No results match "{filter}"</div>
       ) : (
         <div className="lookup-table-wrap">
           <table className="lookup-table">
@@ -33,7 +37,7 @@ function LookupSection({ title, rows, displayName, exportFilename, copyFirstCol 
               <tr>{cols.map((c) => <th key={c}>{c}</th>)}</tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {filtered.map((row, i) => (
                 <tr key={i}>
                   {cols.map((c, ci) => (
                     <td key={c}>
@@ -141,10 +145,11 @@ function BulkAddPanel({ username, onClose }) {
 
 export default function UserLookup() {
   const { query, setQuery, suggestions, setSuggestions, showDrop, setShowDrop, activeIdx, onQueryChange, navigateDropdown, getActiveSuggestion } = useUserSearch()
-  const [loading, setLoading]       = useState(false)
-  const [result, setResult]         = useState(EMPTY_RESULT)
-  const [showGraph, setShowGraph]   = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [result, setResult]           = useState(EMPTY_RESULT)
+  const [showGraph, setShowGraph]     = useState(false)
   const [showBulkAdd, setShowBulkAdd] = useState(false)
+  const [resultFilter, setResultFilter] = useState('')
   const wrapRef = useRef(null)
 
   // Close dropdown on outside click
@@ -185,6 +190,7 @@ export default function UserLookup() {
       error: null,
     })
     setShowGraph(false)
+    setResultFilter('')
   }
 
   function handleKeyDown(e) {
@@ -262,6 +268,13 @@ export default function UserLookup() {
               <span className="lookup-user-id">{result.user}</span>
               <CopyBtn text={result.user} />
             </div>
+            <input
+              className="lookup-result-filter"
+              placeholder="Filter results…"
+              value={resultFilter}
+              onChange={(e) => setResultFilter(e.target.value)}
+              title="Filter all result sections"
+            />
             {window.db?.getAllApplicationGroups && (
               <button className="btn btn-ghost btn-sm" onClick={() => setShowBulkAdd((v) => !v)}
                 title="Add this user to one or more groups">
@@ -283,25 +296,15 @@ export default function UserLookup() {
           )}
 
           {!showGraph && (<>
-            <LookupSection
-              title="Application Groups"
-              rows={result.groups}
-              displayName={result.displayName}
-              exportFilename={`${result.user}-groups.csv`}
-            />
-            <LookupSection
-              title="Roles"
-              rows={result.roles}
-              displayName={result.displayName}
-              exportFilename={`${result.user}-roles.csv`}
-            />
-            <LookupSection
-              title="Allowed Operations"
-              rows={result.operations}
-              displayName={result.displayName}
-              exportFilename={`${result.user}-operations.csv`}
-              copyFirstCol
-            />
+            <LookupSection title="Application Groups" rows={result.groups}
+              displayName={result.displayName} exportFilename={`${result.user}-groups.csv`}
+              filter={resultFilter} />
+            <LookupSection title="Roles" rows={result.roles}
+              displayName={result.displayName} exportFilename={`${result.user}-roles.csv`}
+              filter={resultFilter} />
+            <LookupSection title="Allowed Operations" rows={result.operations}
+              displayName={result.displayName} exportFilename={`${result.user}-operations.csv`}
+              copyFirstCol filter={resultFilter} />
           </>)}
 
         </div>

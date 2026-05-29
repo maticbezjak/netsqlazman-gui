@@ -317,9 +317,15 @@ export default function HelpModal({ onClose }) {
                 <li><strong>Light / Dark theme:</strong> click the ☀️ / 🌙 button in the top-right corner. Preference is remembered.</li>
                 <li><strong>Sortable tables:</strong> click any column header to sort ascending; click again for descending.</li>
                 <li><strong>Resizable sidebar:</strong> drag the divider between the sidebar and the main panel.</li>
+                <li><strong>Sidebar state persisted:</strong> the expanded/collapsed state of the tree is saved across sessions.</li>
                 <li><strong>CSV export:</strong> every result section in User Lookup and Compare Users has a <strong>↓ CSV</strong> button. Files are UTF-8 with BOM so Excel opens diacritics correctly.</li>
                 <li><strong>Clipboard copy:</strong> hover any row in Allowed Operations or Compare tables to reveal a <strong>⎘</strong> copy button. Usernames also have a copy button in the identity bar.</li>
+                <li><strong>Filter results:</strong> after a User Lookup, type in the <em>Filter results…</em> box to search across all three result sections at once. Badge counts update to show filtered/total.</li>
+                <li><strong>Global search <kbd>Ctrl+K</kbd>:</strong> command-palette search across all stores, groups and items — click a result to navigate directly.</li>
+                <li><strong>Clone group:</strong> the <em>Clone</em> button in a group panel creates a copy with a new name and all the same members.</li>
+                <li><strong>Add user to groups:</strong> the <em>⊕ Add to groups</em> button in User Lookup lets you add the found user to one or more groups at once.</li>
                 <li><strong>Auto-update (desktop):</strong> the app checks for updates on startup. A banner appears when a download is in progress or ready — click <em>Restart now</em> to apply immediately.</li>
+                <li><strong>Connection export/import:</strong> connections are exported as AES-256 encrypted JSON files — a passphrase is required to import them on another machine.</li>
               </ul>
             </section>
 
@@ -329,6 +335,8 @@ export default function HelpModal({ onClose }) {
               <table className="help-table">
                 <thead><tr><th>Key</th><th>Action</th></tr></thead>
                 <tbody>
+                  <tr><td><kbd>Ctrl+K</kbd></td><td>Open global search</td></tr>
+                  <tr><td><kbd>F5</kbd> / <kbd>Ctrl+R</kbd></td><td>Reload the authorization tree</td></tr>
                   <tr><td><kbd>Enter</kbd></td><td>Submit connection form / confirm inline edit / select search result</td></tr>
                   <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Navigate autocomplete suggestions in search dropdowns</td></tr>
                   <tr><td><kbd>Escape</kbd></td><td>Cancel edit, close dropdowns, close this help window</td></tr>

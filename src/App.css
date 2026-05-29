@@ -945,6 +945,14 @@ tr:hover .copy-cell .copy-btn,
 .btn-export:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
 
 /* ── Lookup user identity bar ──────────────────────────────────────────────── */
+.lookup-result-filter {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--text-body); font-size: 12px;
+  outline: none; width: 160px; transition: border-color 0.15s;
+}
+.lookup-result-filter:focus { border-color: var(--accent); }
+.lookup-result-filter::placeholder { color: var(--text-placeholder); }
+
 .lookup-user-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 10px 16px;

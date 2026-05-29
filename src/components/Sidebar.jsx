@@ -16,16 +16,32 @@ const ITEM_AUTHS = [
   { itemType: 2, label: 'Operation Authorizations', Icon: IconOp   },
 ]
 
+const STORAGE_KEY = 'azman_sidebar_expanded'
+
+function loadSavedExpanded() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
+}
+
 const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref) {
   const [stores, setStores]       = useState([])
   const [apps, setApps]           = useState({})
   const [appGroups, setAppGroups] = useState({})
   const [items, setItems]         = useState({})
-  const [expanded, setExpanded]   = useState({})
+  const [expanded, setExpanded]   = useState(loadSavedExpanded)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
 
+  // Persist expanded state to localStorage
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(expanded)) } catch {}
+  }, [expanded])
+
   useEffect(() => { loadStores() }, [])
+
+  // Auto-reveal when selection comes from GlobalSearch
+  useEffect(() => {
+    if (selection?.applicationId) autoReveal(selection)
+  }, [selection])
 
   useImperativeHandle(ref, () => ({
     async refreshGroups(appId) {
@@ -37,6 +53,7 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
       const r = await window.db.getItemsByType(appId, itemType)
       if (r.data) setItems((i) => ({ ...i, [key]: r.data }))
     },
+    reload() { loadStores() },
   }))
 
   async function loadStores() {
@@ -51,36 +68,76 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
   async function autoExpand(storeList) {
     if (!storeList.length) return
     const store = storeList[0]
-
     const appsRes = await window.db.getApplications(store.StoreId)
     const appList = appsRes.data || []
     setApps((a) => ({ ...a, [store.StoreId]: appList }))
-
     if (!appList.length) {
       setExpanded((e) => ({ ...e, [`s-${store.StoreId}`]: true }))
       return
     }
-
     const app = appList[0]
-
     const groupsRes = await window.db.getApplicationGroups(app.ApplicationId)
     setAppGroups((g) => ({ ...g, [app.ApplicationId]: groupsRes.data || [] }))
-
     setExpanded((e) => ({
       ...e,
-      [`s-${store.StoreId}`]:          true,
-      [`app-${app.ApplicationId}`]:    true,
-      [`ag-${app.ApplicationId}`]:     true,
-      [`defs-${app.ApplicationId}`]:   true,
-      [`auths-${app.ApplicationId}`]:  true,
+      [`s-${store.StoreId}`]:         true,
+      [`app-${app.ApplicationId}`]:   true,
+      [`ag-${app.ApplicationId}`]:    true,
+      [`defs-${app.ApplicationId}`]:  true,
+      [`auths-${app.ApplicationId}`]: true,
     }))
-
     onSelect({ type: 'app-groups-folder', applicationId: app.ApplicationId, appName: app.Name })
   }
 
-  function tog(key) {
-    setExpanded((e) => ({ ...e, [key]: !e[key] }))
+  // ── Auto-reveal a selection (e.g. from GlobalSearch) ──────────────────────
+  async function autoReveal(sel) {
+    const appId = sel.applicationId
+    if (!appId) return
+
+    // Find which store owns this app — check loaded apps first
+    let foundStoreId = null
+    for (const [storeId, appList] of Object.entries(apps)) {
+      if (appList.find((a) => a.ApplicationId === appId)) { foundStoreId = Number(storeId); break }
+    }
+
+    // If not found, load apps for each store until we find it
+    if (!foundStoreId) {
+      for (const store of stores) {
+        let appList = apps[store.StoreId]
+        if (!appList) {
+          const r = await window.db.getApplications(store.StoreId)
+          appList = r.data || []
+          setApps((a) => ({ ...a, [store.StoreId]: appList }))
+        }
+        if (appList.find((a) => a.ApplicationId === appId)) { foundStoreId = store.StoreId; break }
+      }
+    }
+    if (!foundStoreId) return
+
+    // Ensure groups are loaded
+    if (!appGroups[appId]) {
+      const r = await window.db.getApplicationGroups(appId)
+      setAppGroups((g) => ({ ...g, [appId]: r.data || [] }))
+    }
+
+    // Expand appropriate nodes based on selection type
+    const updates = {
+      [`s-${foundStoreId}`]:       true,
+      [`app-${appId}`]:            true,
+      [`ag-${appId}`]:             true,
+    }
+    if (sel.type === 'item-def' || sel.type === 'item-defs-folder') {
+      updates[`defs-${appId}`] = true
+      if (sel.item?.ItemType !== undefined) updates[`defs-${appId}-${sel.item.ItemType}`] = true
+    }
+    if (sel.type === 'item-auth' || sel.type === 'item-auths-folder') {
+      updates[`auths-${appId}`] = true
+      if (sel.item?.ItemType !== undefined) updates[`auths-${appId}-${sel.item.ItemType}`] = true
+    }
+    setExpanded((e) => ({ ...e, ...updates }))
   }
+
+  function tog(key) { setExpanded((e) => ({ ...e, [key]: !e[key] })) }
 
   async function expandStore(store) {
     const key = `s-${store.StoreId}`
@@ -134,7 +191,7 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
     <aside className="sidebar" style={style}>
       <div className="sidebar-header">
         <span>Authorization Manager</span>
-        <button className="icon-btn" onClick={loadStores} title="Refresh"><IconRefresh /></button>
+        <button className="icon-btn" onClick={loadStores} title="Refresh (F5)"><IconRefresh /></button>
       </div>
 
       <div className="sidebar-search-wrap">
@@ -151,12 +208,8 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
       <div className="tree">
         {stores.map((store) => (
           <div key={store.StoreId}>
-
-            {/* ── Store (root) ─────────────────────────────────────── */}
             <div className="tree-node n0" onClick={() => expandStore(store)}>
-              <span className="tree-arrow">
-                {expanded[`s-${store.StoreId}`] ? <IconChevDown /> : <IconChevRight />}
-              </span>
+              <span className="tree-arrow">{expanded[`s-${store.StoreId}`] ? <IconChevDown /> : <IconChevRight />}</span>
               <span className="tree-icon"><IconStore /></span>
               <span className="tree-label" title={store.Description}>{store.Name}</span>
             </div>
@@ -165,13 +218,9 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
               <div className="tree-level">
                 {(apps[store.StoreId] || []).map((app) => (
                   <div key={app.ApplicationId}>
-
-                    {/* ── Application ──────────────────────────────── */}
                     <div className="tree-node n1" onClick={() => tog(`app-${app.ApplicationId}`)}>
                       <span className="tree-tick" />
-                      <span className="tree-arrow">
-                        {expanded[`app-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
-                      </span>
+                      <span className="tree-arrow">{expanded[`app-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}</span>
                       <span className="tree-icon"><IconApp /></span>
                       <span className="tree-label">{app.Name}</span>
                     </div>
@@ -179,15 +228,11 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                     {expanded[`app-${app.ApplicationId}`] && (
                       <div className="tree-level">
 
-                        {/* ── Application Groups folder ─────────────── */}
-                        <div
-                          className={`tree-node n2 folder ${isSel(`app-groups-folder:${app.ApplicationId}`) ? 'selected' : ''}`}
-                          onClick={() => expandAppGroups(app)}
-                        >
+                        {/* Application Groups folder */}
+                        <div className={`tree-node n2 folder ${isSel(`app-groups-folder:${app.ApplicationId}`) ? 'selected' : ''}`}
+                          onClick={() => expandAppGroups(app)}>
                           <span className="tree-tick" />
-                          <span className="tree-arrow">
-                            {expanded[`ag-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
-                          </span>
+                          <span className="tree-arrow">{expanded[`ag-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}</span>
                           <span className="tree-icon"><IconUsers /></span>
                           <span className="tree-label">Application Groups</span>
                         </div>
@@ -195,11 +240,9 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                         {expanded[`ag-${app.ApplicationId}`] && (
                           <div className="tree-level">
                             {filterByName(appGroups[app.ApplicationId] || []).map((g) => (
-                              <div
-                                key={g.ApplicationGroupId}
+                              <div key={g.ApplicationGroupId}
                                 className={`tree-node n3 ${isSel(`app-group:${g.ApplicationGroupId}`) ? 'selected' : ''}`}
-                                onClick={() => onSelect({ type: 'app-group', group: g, applicationId: app.ApplicationId, appName: app.Name })}
-                              >
+                                onClick={() => onSelect({ type: 'app-group', group: g, applicationId: app.ApplicationId, appName: app.Name })}>
                                 <span className="tree-tick" />
                                 <span className="tree-icon"><IconUser /></span>
                                 <span className="tree-label" title={g.Description}>{g.Name}</span>
@@ -208,12 +251,10 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                           </div>
                         )}
 
-                        {/* ── Item Definitions folder ───────────────── */}
+                        {/* Item Definitions folder */}
                         <div className="tree-node n2 folder" onClick={() => tog(`defs-${app.ApplicationId}`)}>
                           <span className="tree-tick" />
-                          <span className="tree-arrow">
-                            {expanded[`defs-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
-                          </span>
+                          <span className="tree-arrow">{expanded[`defs-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}</span>
                           <span className="tree-icon"><IconFolder /></span>
                           <span className="tree-label">Item Definitions</span>
                         </div>
@@ -225,29 +266,19 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                               const expKey   = `defs-${app.ApplicationId}-${itemType}`
                               return (
                                 <div key={itemType}>
-                                  <div
-                                    className={`tree-node n3 folder ${isSel(`item-defs-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
-                                    onClick={() => {
-                                      expandItemTypeFolder(app, itemType, 'defs')
-                                      onSelect({ type: 'item-defs-folder', applicationId: app.ApplicationId, itemType, appName: app.Name })
-                                    }}
-                                  >
+                                  <div className={`tree-node n3 folder ${isSel(`item-defs-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
+                                    onClick={() => { expandItemTypeFolder(app, itemType, 'defs'); onSelect({ type: 'item-defs-folder', applicationId: app.ApplicationId, itemType, appName: app.Name }) }}>
                                     <span className="tree-tick" />
-                                    <span className="tree-arrow">
-                                      {expanded[expKey] ? <IconChevDown /> : <IconChevRight />}
-                                    </span>
+                                    <span className="tree-arrow">{expanded[expKey] ? <IconChevDown /> : <IconChevRight />}</span>
                                     <span className="tree-icon"><Icon /></span>
                                     <span className="tree-label">{label}</span>
                                   </div>
-
                                   {expanded[expKey] && (
                                     <div className="tree-level">
                                       {filterByName(items[cacheKey] || []).map((item) => (
-                                        <div
-                                          key={item.ItemId}
+                                        <div key={item.ItemId}
                                           className={`tree-node n4 ${isSel(`item-def:${item.ItemId}`) ? 'selected' : ''}`}
-                                          onClick={() => onSelect({ type: 'item-def', item, appName: app.Name })}
-                                        >
+                                          onClick={() => onSelect({ type: 'item-def', item, appName: app.Name })}>
                                           <span className="tree-tick" />
                                           <span className="tree-label" title={item.Description}>{item.Name}</span>
                                         </div>
@@ -260,12 +291,10 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                           </div>
                         )}
 
-                        {/* ── Item Authorizations folder ────────────── */}
+                        {/* Item Authorizations folder */}
                         <div className="tree-node n2 folder" onClick={() => tog(`auths-${app.ApplicationId}`)}>
                           <span className="tree-tick" />
-                          <span className="tree-arrow">
-                            {expanded[`auths-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}
-                          </span>
+                          <span className="tree-arrow">{expanded[`auths-${app.ApplicationId}`] ? <IconChevDown /> : <IconChevRight />}</span>
                           <span className="tree-icon"><IconFolderKey /></span>
                           <span className="tree-label">Item Authorizations</span>
                         </div>
@@ -277,29 +306,19 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                               const expKey   = `auths-${app.ApplicationId}-${itemType}`
                               return (
                                 <div key={itemType}>
-                                  <div
-                                    className={`tree-node n3 folder ${isSel(`item-auths-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
-                                    onClick={() => {
-                                      expandItemTypeFolder(app, itemType, 'auths')
-                                      onSelect({ type: 'item-auths-folder', applicationId: app.ApplicationId, itemType, appName: app.Name })
-                                    }}
-                                  >
+                                  <div className={`tree-node n3 folder ${isSel(`item-auths-folder:${app.ApplicationId}:${itemType}`) ? 'selected' : ''}`}
+                                    onClick={() => { expandItemTypeFolder(app, itemType, 'auths'); onSelect({ type: 'item-auths-folder', applicationId: app.ApplicationId, itemType, appName: app.Name }) }}>
                                     <span className="tree-tick" />
-                                    <span className="tree-arrow">
-                                      {expanded[expKey] ? <IconChevDown /> : <IconChevRight />}
-                                    </span>
+                                    <span className="tree-arrow">{expanded[expKey] ? <IconChevDown /> : <IconChevRight />}</span>
                                     <span className="tree-icon"><Icon /></span>
                                     <span className="tree-label">{label}</span>
                                   </div>
-
                                   {expanded[expKey] && (
                                     <div className="tree-level">
                                       {filterByName(items[cacheKey] || []).map((item) => (
-                                        <div
-                                          key={item.ItemId}
+                                        <div key={item.ItemId}
                                           className={`tree-node n4 ${isSel(`item-auth:${item.ItemId}`) ? 'selected' : ''}`}
-                                          onClick={() => onSelect({ type: 'item-auth', item, appName: app.Name })}
-                                        >
+                                          onClick={() => onSelect({ type: 'item-auth', item, appName: app.Name })}>
                                           <span className="tree-tick" />
                                           <span className="tree-label" title={item.Description}>{item.Name}</span>
                                         </div>
@@ -318,7 +337,6 @@ const Sidebar = forwardRef(function Sidebar({ selection, onSelect, style }, ref)
                 ))}
               </div>
             )}
-
           </div>
         ))}
       </div>

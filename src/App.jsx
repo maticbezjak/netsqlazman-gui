@@ -32,12 +32,18 @@ function AppInner() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // ── Ctrl/Cmd+K → open global search ───────────────────────────────────────
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         if (connected) setShowSearch((v) => !v)
+      }
+      if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key === 'r' && !e.shiftKey)) {
+        if (connected && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault()
+          sidebarRef.current?.reload()
+        }
       }
       if (e.key === 'Escape') setShowSearch(false)
     }

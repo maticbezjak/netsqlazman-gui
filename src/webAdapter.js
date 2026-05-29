@@ -80,5 +80,11 @@ export function installWebAdapter() {
     getAzmanGroupsForUser:     (u)       => get(`/api/db/azman/user/${encodeURIComponent(u)}/groups`),
     getAzmanRolesForUser:      (u)       => get(`/api/db/azman/user/${encodeURIComponent(u)}/roles`),
     getAzmanOperationsForUser: (u)       => get(`/api/db/azman/user/${encodeURIComponent(u)}/operations`),
+
+    // Health / search / bulk (added in v1.0.11)
+    ping:                    ()  => get('/api/health').then((r) => ({ ok: !!r.success })),
+    getUserSidHex:           (u) => get(`/api/db/user/${encodeURIComponent(u)}/sidhex`),
+    globalSearch:            (q) => get(`/api/db/search?q=${encodeURIComponent(q)}`),
+    getAllApplicationGroups: ()  => get('/api/db/all-application-groups'),
   }
 }
