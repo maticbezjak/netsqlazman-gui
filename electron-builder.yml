@@ -21,12 +21,7 @@ extraMetadata:
   main: electron/main.js
 
 win:
-  azureSignOptions:
-    endpoint: "${AZURE_KEY_VAULT_URL}"
-    certificateName: "${AZURE_CERT_NAME}"
-    clientId: "${AZURE_CLIENT_ID}"
-    clientSecret: "${AZURE_CLIENT_SECRET}"
-    tenantId: "${AZURE_TENANT_ID}"
+  sign: scripts/windowsSign.js
   target:
     - target: nsis
       arch:

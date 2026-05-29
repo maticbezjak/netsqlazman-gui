@@ -59,6 +59,10 @@ stages:
         Write-Host "Building version: $version"
       displayName: 'Set build version'
 
+    # ── AzureSignTool — called by scripts/windowsSign.js ─────────────────
+    - script: dotnet tool install --global AzureSignTool
+      displayName: 'Install AzureSignTool'
+
     # ── Vite renderer build ───────────────────────────────────────────────
     - script: npm run build:renderer
       displayName: 'Build renderer (Vite)'
