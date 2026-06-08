@@ -119,11 +119,9 @@ async function closePool() {
 ipcMain.handle('db:connect', async (_, config) => {
   try {
     await closePool()
-    currentPool = await sql.connect({
+    const sqlConfig = {
       server: config.server,
       port: parseInt(config.port) || 1433,
-      user: config.user,
-      password: config.password,
       database: config.database,
       options: {
         encrypt: false,
@@ -131,7 +129,14 @@ ipcMain.handle('db:connect', async (_, config) => {
         enableArithAbort: true,
       },
       connectionTimeout: 10000,
-    })
+    }
+    if (config.authType === 'windows') {
+      sqlConfig.options.trustedConnection = true
+    } else {
+      sqlConfig.user = config.user
+      sqlConfig.password = config.password
+    }
+    currentPool = await sql.connect(sqlConfig)
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
@@ -223,18 +228,23 @@ ipcMain.handle('db:getAllApplicationGroups', async () => {
   }
 })
 
-ipcMain.handle('db:listDatabases', async (_, { server, port, user, password }) => {
+ipcMain.handle('db:listDatabases', async (_, { server, port, user, password, authType }) => {
   let tempPool = null
   try {
-    tempPool = new sql.ConnectionPool({
+    const cfg = {
       server,
       port:     parseInt(port) || 1433,
-      user,
-      password,
       database: 'master',
       options:  { encrypt: false, trustServerCertificate: true, enableArithAbort: true },
       connectionTimeout: 8000,
-    })
+    }
+    if (authType === 'windows') {
+      cfg.options.trustedConnection = true
+    } else {
+      cfg.user = user
+      cfg.password = password
+    }
+    tempPool = new sql.ConnectionPool(cfg)
     await tempPool.connect()
     const r = await tempPool.request().query(
       `SELECT name FROM sys.databases WHERE name <> 'tempdb' ORDER BY name`

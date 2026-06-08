@@ -38,7 +38,8 @@ export function installWebAdapter() {
 
   // ── DB ───────────────────────────────────────────────────────────────────
   window.db = {
-    // In web mode the server holds the connection — these are no-ops
+    // In web mode the server holds the connection — these are no-ops.
+    // Windows Authentication is Electron-only; web mode always uses the server's env-var credentials.
     connect:        () => post('/api/db/connect'),
     disconnect:     () => post('/api/db/disconnect'),
     listDatabases:  () => get('/api/db/list-databases'),
