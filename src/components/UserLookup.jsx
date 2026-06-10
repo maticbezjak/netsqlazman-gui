@@ -169,7 +169,7 @@ export default function UserLookup() {
     setResult(EMPTY_RESULT)
 
     const [grpRes, roleRes, opRes] = await Promise.all([
-      window.db.getAzmanGroupsForUser(usrname),
+      window.db.getAzmanGroupsForUserDetail(usrname),
       window.db.getAzmanRolesForUser(usrname),
       window.db.getAzmanOperationsForUser(usrname),
     ])

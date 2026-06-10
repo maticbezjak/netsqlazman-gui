@@ -119,9 +119,11 @@ async function closePool() {
 ipcMain.handle('db:connect', async (_, config) => {
   try {
     await closePool()
-    const sqlConfig = {
-      server: config.server,
-      port: parseInt(config.port) || 1433,
+    currentPool = await sql.connect({
+      server:   config.server,
+      port:     parseInt(config.port) || 1433,
+      user:     config.user,
+      password: config.password,
       database: config.database,
       options: {
         encrypt: false,
@@ -129,14 +131,7 @@ ipcMain.handle('db:connect', async (_, config) => {
         enableArithAbort: true,
       },
       connectionTimeout: 10000,
-    }
-    if (config.authType === 'windows') {
-      sqlConfig.options.trustedConnection = true
-    } else {
-      sqlConfig.user = config.user
-      sqlConfig.password = config.password
-    }
-    currentPool = await sql.connect(sqlConfig)
+    })
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
@@ -228,23 +223,18 @@ ipcMain.handle('db:getAllApplicationGroups', async () => {
   }
 })
 
-ipcMain.handle('db:listDatabases', async (_, { server, port, user, password, authType }) => {
+ipcMain.handle('db:listDatabases', async (_, { server, port, user, password }) => {
   let tempPool = null
   try {
-    const cfg = {
+    tempPool = new sql.ConnectionPool({
       server,
       port:     parseInt(port) || 1433,
+      user,
+      password,
       database: 'master',
       options:  { encrypt: false, trustServerCertificate: true, enableArithAbort: true },
       connectionTimeout: 8000,
-    }
-    if (authType === 'windows') {
-      cfg.options.trustedConnection = true
-    } else {
-      cfg.user = user
-      cfg.password = password
-    }
-    tempPool = new sql.ConnectionPool(cfg)
+    })
     await tempPool.connect()
     const r = await tempPool.request().query(
       `SELECT name FROM sys.databases WHERE name <> 'tempdb' ORDER BY name`
@@ -538,7 +528,11 @@ ipcMain.handle('db:addGroupMember', async (_, { groupId, sidHex, whereDefined, i
       .input('whereDefined', sql.Int,     whereDefined)
       .input('isMember',     sql.Bit,     isMember ? 1 : 0)
       .input('sid',          sql.VarBinary, sidBuf)
-      .query(`INSERT INTO netsqlazman_ApplicationGroupMembersTable
+      .query(`IF NOT EXISTS (
+                SELECT 1 FROM netsqlazman_ApplicationGroupMembersTable
+                WHERE ApplicationGroupId = @groupId AND objectSid = @sid AND WhereDefined = @whereDefined
+              )
+              INSERT INTO netsqlazman_ApplicationGroupMembersTable
                 (ApplicationGroupId, WhereDefined, IsMember, objectSid)
               VALUES (@groupId, @whereDefined, @isMember, @sid)`)
     return { success: true }
@@ -756,6 +750,18 @@ ipcMain.handle('db:getAzmanGroupsForUser', async (_, username) => {
     const r = await currentPool.request()
       .input('username', sql.NVarChar, username)
       .execute('GetAzmanGroupsForUser')
+    return { data: r.recordset }
+  } catch (err) {
+    return { error: err.message }
+  }
+})
+
+ipcMain.handle('db:getAzmanGroupsForUserDetail', async (_, username) => {
+  if (!currentPool) return { error: 'Not connected' }
+  try {
+    const r = await currentPool.request()
+      .input('username', sql.NVarChar, username)
+      .execute('GetAzmanGroupsForUserDetail')
     return { data: r.recordset }
   } catch (err) {
     return { error: err.message }

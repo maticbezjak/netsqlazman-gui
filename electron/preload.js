@@ -49,7 +49,8 @@ contextBridge.exposeInMainWorld('db', {
   // ── User Lookup ────────────────────────────────────────────────────────────
   searchUsers:              (query)    => ipcRenderer.invoke('db:searchUsers', query),
   getAzmanGroups:           ()         => ipcRenderer.invoke('db:getAzmanGroups'),
-  getAzmanGroupsForUser:    (username) => ipcRenderer.invoke('db:getAzmanGroupsForUser', username),
+  getAzmanGroupsForUser:       (username) => ipcRenderer.invoke('db:getAzmanGroupsForUser', username),
+  getAzmanGroupsForUserDetail: (username) => ipcRenderer.invoke('db:getAzmanGroupsForUserDetail', username),
   getAzmanOperationsForUser:(username) => ipcRenderer.invoke('db:getAzmanOperationsForUser', username),
   getAzmanRolesForUser:     (username) => ipcRenderer.invoke('db:getAzmanRolesForUser', username),
 

@@ -217,7 +217,13 @@ app.post('/api/db/groups/:groupId/members', wrap(async (req) => {
     .input('whereDefined', sql.Int,       whereDefined)
     .input('isMember',     sql.Bit,       isMember ? 1 : 0)
     .input('sid',          sql.VarBinary, sidBuf)
-    .query('INSERT INTO netsqlazman_ApplicationGroupMembersTable (ApplicationGroupId, WhereDefined, IsMember, objectSid) VALUES (@groupId, @whereDefined, @isMember, @sid)')
+    .query(`IF NOT EXISTS (
+              SELECT 1 FROM netsqlazman_ApplicationGroupMembersTable
+              WHERE ApplicationGroupId = @groupId AND objectSid = @sid AND WhereDefined = @whereDefined
+            )
+            INSERT INTO netsqlazman_ApplicationGroupMembersTable
+              (ApplicationGroupId, WhereDefined, IsMember, objectSid)
+            VALUES (@groupId, @whereDefined, @isMember, @sid)`)
   return { success: true }
 }))
 
@@ -351,6 +357,12 @@ app.get('/api/db/azman/groups', wrap(async () => {
 app.get('/api/db/azman/user/:username/groups', wrap(async (req) => {
   const p = await getPool()
   const r = await p.request().input('username', sql.NVarChar, req.params.username).execute('GetAzmanGroupsForUser')
+  return { data: r.recordset }
+}))
+
+app.get('/api/db/azman/user/:username/groups-detail', wrap(async (req) => {
+  const p = await getPool()
+  const r = await p.request().input('username', sql.NVarChar, req.params.username).execute('GetAzmanGroupsForUserDetail')
   return { data: r.recordset }
 }))
 

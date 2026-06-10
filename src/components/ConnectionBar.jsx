@@ -3,7 +3,7 @@ import { IconCheck, IconFolderOpen, IconChevDown, IconSun, IconMoon } from './Ic
 import { useToast } from './Toast'
 import { encryptConnections, decryptConnections, isEncryptedExport } from '../utils/crypto'
 
-const EMPTY = { server: '', port: '1433', authType: 'sql', user: '', password: '', database: '' }
+const EMPTY = { server: '', port: '1433', user: '', password: '', database: '' }
 
 export default function ConnectionBar({ connected, onConnectionChange, theme, onToggleTheme, onHelp }) {
   const [config, setConfig]               = useState(EMPTY)
@@ -76,7 +76,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
   }
 
   function applyConnection(conn) {
-    setConfig({ server: conn.server, port: conn.port, authType: conn.authType || 'sql', user: conn.user || '', password: conn.password || '', database: conn.database })
+    setConfig({ server: conn.server, port: conn.port, user: conn.user || '', password: conn.password || '', database: conn.database })
     setShowDropdown(false)
     setDbList([])
     setError('')
@@ -87,7 +87,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     setDbError('')
     setShowDbDrop(false)
     try {
-      const r = await window.db.listDatabases({ server: config.server, port: config.port, user: config.user, password: config.password, authType: config.authType })
+      const r = await window.db.listDatabases({ server: config.server, port: config.port, user: config.user, password: config.password })
       if (r.data) {
         setDbList(r.data)
         if (dbWrapRef.current) setDbDropRect(dbWrapRef.current.getBoundingClientRect())
@@ -102,8 +102,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     }
   }
 
-  const isWindows   = config.authType === 'windows'
-  const canFetchDbs = isWindows ? !!config.server : !!(config.server && config.user && config.password)
+  const canFetchDbs = !!(config.server && config.user && config.password)
   const filteredDbs = dbList.filter((name) =>
     !config.database || name.toLowerCase().includes(config.database.toLowerCase())
   )
@@ -114,7 +113,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     try {
       const list = await window.connections.save({
         name: saveName.trim(),
-        server: config.server, port: config.port, authType: config.authType,
+        server: config.server, port: config.port,
         user: config.user, password: config.password, database: config.database,
       })
       setSaved(list)
@@ -192,7 +191,6 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
           name:     String(conn.name),
           server:   String(conn.server),
           port:     String(conn.port     || '1433'),
-          authType: conn.authType === 'windows' ? 'windows' : 'sql',
           user:     String(conn.user     || ''),
           password: String(conn.password || ''),
           database: String(conn.database || ''),
@@ -247,19 +245,21 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
               <div className="saved-dropdown">
                 <div className="saved-header">Saved connections</div>
 
-                {saved.length === 0 && (
-                  <div className="saved-empty">No saved connections yet.</div>
-                )}
+                <div className="saved-items-scroll">
+                  {saved.length === 0 && (
+                    <div className="saved-empty">No saved connections yet.</div>
+                  )}
 
-                {saved.map((conn) => (
-                  <div key={conn.id} className="saved-item" onClick={() => handleConnectAndSave(conn)}>
-                    <div className="saved-item-info">
-                      <span className="saved-name">{conn.name}</span>
-                      <span className="saved-detail">{conn.server}:{conn.port} · {conn.database} · {conn.authType === 'windows' ? 'Windows Auth' : conn.user}</span>
+                  {saved.map((conn) => (
+                    <div key={conn.id} className="saved-item" onClick={() => handleConnectAndSave(conn)}>
+                      <div className="saved-item-info">
+                        <span className="saved-name">{conn.name}</span>
+                        <span className="saved-detail">{conn.server}:{conn.port} · {conn.database} · {conn.user}</span>
+                      </div>
+                      <button className="saved-del" onClick={(e) => handleDelete(conn.id, e)} title="Delete">×</button>
                     </div>
-                    <button className="saved-del" onClick={(e) => handleDelete(conn.id, e)} title="Delete">×</button>
-                  </div>
-                ))}
+                  ))}
+                </div>
 
                 <div className="saved-footer">
                   {saveMode ? (
@@ -372,26 +372,8 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
           <input className="conn-server" placeholder="Server" value={config.server} onChange={set('server')} />
           <input className="conn-port"   placeholder="Port"   value={config.port}   onChange={set('port')} />
 
-          {/* ── Auth type toggle ──────────────────── */}
-          <div className="auth-toggle">
-            <button
-              type="button"
-              className={`auth-toggle-btn ${!isWindows ? 'active' : ''}`}
-              onClick={() => setConfig((c) => ({ ...c, authType: 'sql' }))}
-              title="SQL Server Authentication"
-            >SQL</button>
-            <button
-              type="button"
-              className={`auth-toggle-btn ${isWindows ? 'active' : ''}`}
-              onClick={() => setConfig((c) => ({ ...c, authType: 'windows' }))}
-              title="Windows Authentication (Electron only)"
-            >Windows</button>
-          </div>
-
-          {!isWindows && <>
-            <input className="conn-user"     placeholder="User"     value={config.user}     onChange={set('user')} />
-            <input className="conn-password" type="password" placeholder="Password" value={config.password} onChange={set('password')} />
-          </>}
+          <input className="conn-user"     placeholder="User"     value={config.user}     onChange={set('user')} />
+          <input className="conn-password" type="password" placeholder="Password" value={config.password} onChange={set('password')} />
 
           {/* ── Database picker ─────────────────────── */}
           <div className="conn-db-wrap" ref={dbWrapRef}>
@@ -437,7 +419,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
           <button
             className="btn btn-primary"
             onClick={handleConnect}
-            disabled={loading || !config.server || (!isWindows && !config.user)}
+            disabled={loading || !config.server || !config.user || !config.password}
           >
             {loading ? 'Connecting…' : 'Connect'}
           </button>
@@ -448,7 +430,7 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
         /* ── Connected state ───────────────────────── */
         <div className="conn-status">
           <span className="status-dot" />
-          <span className="conn-info">{config.server}:{config.port} / {config.database}{isWindows ? ' · Windows Auth' : ` · ${config.user}`}</span>
+          <span className="conn-info">{config.server}:{config.port} / {config.database} · {config.user}</span>
 
           {savedFlash && <span className="save-flash"><IconCheck /> Saved!</span>}
 
