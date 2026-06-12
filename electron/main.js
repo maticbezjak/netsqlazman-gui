@@ -4,6 +4,27 @@ const fs   = require('fs')
 const sql  = require('mssql')
 const { autoUpdater } = require('electron-updater')
 
+// ── Multi-instance support ─────────────────────────────────────────────────────
+// Secondary instances share the primary's Chromium profile by default and stall
+// for seconds waiting on its cache locks (white screen). Give each secondary its
+// own session cache; connections.json stays shared via userData.
+
+const isPrimaryInstance = app.requestSingleInstanceLock()
+const instancesDir = path.join(app.getPath('userData'), 'instance-cache')
+
+if (!isPrimaryInstance) {
+  app.setPath('sessionData', path.join(instancesDir, String(process.pid)))
+} else {
+  // Clean up caches left behind by closed secondary instances.
+  // Dirs still in use by a live instance are locked and survive the delete.
+  fs.readdir(instancesDir, (err, entries) => {
+    if (err) return
+    for (const entry of entries) {
+      fs.rm(path.join(instancesDir, entry), { recursive: true, force: true }, () => {})
+    }
+  })
+}
+
 // ── Saved connections (passwords encrypted at rest via safeStorage) ───────────
 
 const ENC_PREFIX = '__enc1__'
@@ -66,12 +87,15 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'NetSqlAzMan Manager',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
+
+  mainWindow.once('ready-to-show', () => mainWindow.show())
 
   const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) {
@@ -84,6 +108,7 @@ function createWindow() {
 
 function initAutoUpdater() {
   if (process.env.VITE_DEV_SERVER_URL) return  // skip in dev mode
+  if (!isPrimaryInstance) return               // only the primary instance updates
 
   autoUpdater.on('update-available', (info) => {
     mainWindow?.webContents.send('updater:update-available', info.version)
@@ -93,7 +118,8 @@ function initAutoUpdater() {
     mainWindow?.webContents.send('updater:update-downloaded', info.version)
   })
 
-  autoUpdater.checkForUpdatesAndNotify()
+  // Delay the check so the update download never competes with app startup
+  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 10_000)
 }
 
 ipcMain.handle('updater:quitAndInstall', () => autoUpdater.quitAndInstall())
