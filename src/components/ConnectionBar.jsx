@@ -50,6 +50,17 @@ export default function ConnectionBar({ connected, onConnectionChange, theme, on
     setSaved(list)
   }
 
+  // ── Window title reflects the connected profile ────────────────────────────
+  useEffect(() => {
+    const base = 'NetSqlAzMan Manager'
+    if (connected && config.database) {
+      const profile = saved.find((s) => s.server === config.server && s.database === config.database)?.name
+      document.title = `${profile || config.database} — ${base}`
+    } else {
+      document.title = base
+    }
+  }, [connected, config.server, config.database, saved])
+
   function set(field) {
     return (e) => setConfig((c) => ({ ...c, [field]: e.target.value }))
   }
